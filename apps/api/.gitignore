@@ -1,0 +1,11 @@
+# Local durable store (created agents survive reload) — do not commit
+.omnia_store.json
+.omnia_store.json.tmp
+
+# Env & secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
