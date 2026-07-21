@@ -1444,8 +1444,14 @@ STORE: dict[str, Any] = {
 import json as _json_store
 import os as _os_store
 
-_PERSIST_PATH = _os_store.path.join(_os_store.path.dirname(__file__), ".omnia_store.json")
+# Vercel Functions only allow writes under /tmp (ephemeral per instance).
+_PERSIST_PATH = (
+    "/tmp/.omnia_store.json"
+    if _os_store.environ.get("VERCEL")
+    else _os_store.path.join(_os_store.path.dirname(__file__), ".omnia_store.json")
+)
 _PERSIST_KEYS = ("users", "orgs", "agents", "library", "listings", "evals", "agent_memory")
+_ON_VERCEL = bool(_os_store.environ.get("VERCEL"))
 
 
 def _save_store() -> None:
@@ -2239,10 +2245,31 @@ async def lifespan(app: FastAPI):
     log.info("standalone.shutdown")
 
 
+def _cors_allow_origins() -> list[str]:
+    """Credentialed browser calls cannot use '*'; list real frontends explicitly."""
+    import os
+
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://omnia-wine.vercel.app",
+    ]
+    web = (settings.WEB_BASE_URL or "").strip().rstrip("/")
+    if web and web not in origins:
+        origins.append(web)
+    extra = (os.environ.get("CORS_ORIGINS") or "").strip()
+    if extra:
+        for part in extra.split(","):
+            origin = part.strip().rstrip("/")
+            if origin and origin not in origins:
+                origins.append(origin)
+    return origins
+
+
 app = FastAPI(title="OMNIA Standalone API", version="0.1.0-local", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_origins=_cors_allow_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -3113,16 +3140,27 @@ async def generate_agent(req: GenerateIn, user: SessionUser = Depends(require_pe
             _save_store()
 
         try:
-            factory = await run_product_factory(
-                name=req.name.strip(),
-                chat=chat,
-                requirements=dict(session.get("requirements") or {}),
-                preferred_model=preferred,
-                llm_complete=_llm_for_factory,
-                parse_json=_json_object,
-                on_progress=_on_progress,
-                use_heuristics_on_failure=True,
-            )
+            # Vercel Hobby caps functions at 300s — full 8-phase LLM invent often
+            # exceeds that. Keep LLM for classify + ai_core; heuristics for the rest.
+            factory_kwargs: dict[str, Any] = {
+                "name": req.name.strip(),
+                "chat": chat,
+                "requirements": dict(session.get("requirements") or {}),
+                "preferred_model": preferred,
+                "llm_complete": _llm_for_factory,
+                "parse_json": _json_object,
+                "on_progress": _on_progress,
+                "use_heuristics_on_failure": True,
+            }
+            if _ON_VERCEL:
+                factory_kwargs.update(
+                    {
+                        "llm_phases": {"classify", "ai_core"},
+                        "max_retries": 1,
+                        "skip_critic": True,
+                    }
+                )
+            factory = await run_product_factory(**factory_kwargs)
         except ProductFactoryError as e:
             session["generate_progress"] = {
                 **(session.get("generate_progress") or {}),

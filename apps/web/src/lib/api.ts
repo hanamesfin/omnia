@@ -3,8 +3,11 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:800
 /** Default ceiling for most API calls. */
 export const API_TIMEOUT_MS = 12000;
 
-/** Covers a free-tier cold start plus all Product Factory phases. */
-export const GENERATE_TIMEOUT_MS = 600_000;
+/**
+ * Match Vercel Hobby function maxDuration (300s). Full Product Factory can still
+ * time out on slow free models — API uses a serverless-fast invent path on Vercel.
+ */
+export const GENERATE_TIMEOUT_MS = 280_000;
 
 type ApiErrorBody = {
   detail?: { error?: { message?: string } } | string;

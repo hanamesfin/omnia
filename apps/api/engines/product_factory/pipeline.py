@@ -32,18 +32,27 @@ async def run_product_factory(
     parse_json: ParseFn,
     on_progress: ProgressFn | None = None,
     use_heuristics_on_failure: bool = True,
+    phase_order: list[str] | None = None,
+    max_retries: int | None = None,
+    llm_phases: set[str] | None = None,
+    skip_critic: bool = False,
 ) -> dict[str, Any]:
     """
-    Run all invent phases. Returns:
+    Run invent phases. Returns:
       {
         workspace, product_blueprint, ai_core, phases, served_model, created_via
       }
+
+    On Vercel Hobby (300s maxDuration), pass llm_phases={"classify","ai_core"}
+    and skip_critic=True so non-core phases stay heuristic and finish in time.
     """
     transcript = _format_chat(chat)
     req_blob = json.dumps(requirements or {}, default=str)[:4000]
     workspace = empty_workspace(name=name, chat_summary=transcript[:1500])
     served_models: list[str] = []
     created_via = "product_factory"
+    ordered = list(phase_order) if phase_order else list(PHASE_ORDER)
+    retries = MAX_RETRIES if max_retries is None else max(1, int(max_retries))
 
     async def emit(event: dict[str, Any]) -> None:
         if on_progress:
@@ -51,7 +60,7 @@ async def run_product_factory(
             if maybe is not None and hasattr(maybe, "__await__"):
                 await maybe  # type: ignore[misc]
 
-    for phase_id in PHASE_ORDER:
+    for phase_id in ordered:
         label = PHASE_LABELS.get(phase_id, phase_id)
         await emit(
             {
@@ -63,20 +72,26 @@ async def run_product_factory(
         )
         last_errors: list[str] = []
         success = False
-        for attempt in range(1, MAX_RETRIES + 1):
+        allow_llm = llm_phases is None or phase_id in llm_phases
+        for attempt in range(1, retries + 1):
             data: dict[str, Any] | None = None
             used_model = "heuristic"
             try:
-                data, used_model = await _run_specialist(
-                    phase_id=phase_id,
-                    workspace=workspace,
-                    name=name,
-                    transcript=transcript,
-                    requirements_json=req_blob,
-                    preferred_model=preferred_model,
-                    llm_complete=llm_complete,
-                    parse_json=parse_json,
-                )
+                if allow_llm:
+                    data, used_model = await _run_specialist(
+                        phase_id=phase_id,
+                        workspace=workspace,
+                        name=name,
+                        transcript=transcript,
+                        requirements_json=req_blob,
+                        preferred_model=preferred_model,
+                        llm_complete=llm_complete,
+                        parse_json=parse_json,
+                    )
+                else:
+                    data = heuristic_phase(phase_id, workspace, name=name, transcript=transcript)
+                    used_model = "heuristic"
+                    created_via = "product_factory_serverless"
                 if used_model != "heuristic":
                     served_models.append(used_model)
             except Exception as e:
@@ -93,8 +108,8 @@ async def run_product_factory(
                 last_errors = last_errors or ["empty specialist output"]
                 continue
 
-            # Critic pass (skip for heuristic-only to keep tests fast/deterministic)
-            if used_model != "heuristic":
+            # Critic pass (skip for heuristic-only / serverless fast path)
+            if used_model != "heuristic" and not skip_critic:
                 try:
                     critiqued, cmodel = await _run_critic(
                         phase_id=phase_id,
@@ -154,7 +169,7 @@ async def run_product_factory(
                 }
             )
             # On last attempt, accept heuristic repair if possible
-            if attempt == MAX_RETRIES and use_heuristics_on_failure:
+            if attempt == retries and use_heuristics_on_failure:
                 repair = heuristic_phase(phase_id, workspace, name=name, transcript=transcript)
                 candidate = merge_phase_output(workspace, phase_id, repair)
                 ok2, failures2 = gate_phase(phase_id, candidate)
