@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMNIA — Build Specification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e13; --bg-elev:#10141b; --surface:#151a22; --surface-2:#1b212b;
+    --border:#262e3a; --border-soft:#1e2530;
+    --text:#e9e6dd; --text-dim:#99a2ae; --text-faint:#5c6672;
+    --accent:#c9a961; --accent-dim:#9c8250; --accent-soft:rgba(201,169,97,.10);
+    --accent2:#5fa8b3; --accent2-soft:rgba(95,168,179,.10);
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --radius:3px; --sidebar-w:296px; --topbar-h:46px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+  ::selection{background:var(--accent-soft);color:var(--accent);}
+  #progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent-dim),var(--accent));width:0%;z-index:300;transition:width .08s linear;}
+
+  /* topbar */
+  .topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);z-index:200;
+    background:rgba(11,14,19,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;padding:0 22px;}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);}
+  .brand .node{width:8px;height:8px;background:var(--accent);display:inline-block;border-radius:1px;}
+  .brand b{font-size:14px;letter-spacing:.14em;color:var(--text);}
+  .brand span{font-size:10.5px;letter-spacing:.1em;color:var(--text-faint);text-transform:uppercase;padding-left:10px;border-left:1px solid var(--border);}
+  .meta{display:flex;gap:16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;}
+  .meta em{color:var(--accent2);font-style:normal;}
+  .hbtn{display:none;background:none;border:1px solid var(--border);color:var(--text-dim);width:32px;height:32px;border-radius:var(--radius);cursor:pointer;font-family:var(--mono);}
+
+  /* sidebar */
+  .sidebar{position:fixed;top:var(--topbar-h);left:0;bottom:0;width:var(--sidebar-w);
+    background:var(--bg-elev);border-right:1px solid var(--border);overflow-y:auto;padding:22px 0 40px;z-index:150;}
+  .navgroup{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--text-faint);
+    text-transform:uppercase;padding:18px 24px 8px;}
+  .navgroup:first-child{padding-top:0;}
+  .navlink{display:flex;align-items:baseline;gap:9px;padding:7px 24px;font-size:13px;color:var(--text-dim);
+    text-decoration:none;border-left:2px solid transparent;transition:background .12s,color .12s,border-color .12s;}
+  .navlink:hover{color:var(--text);background:var(--surface);}
+  .navlink.active{color:var(--text);border-left-color:var(--accent);background:var(--accent-soft);}
+  .navlink.active .code{color:var(--accent);}
+  .navlink .code{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);min-width:44px;}
+
+  /* main */
+  main{margin-left:var(--sidebar-w);padding-top:var(--topbar-h);min-height:100vh;}
+  .content-wrap{max-width:900px;margin:0 auto;padding:58px 50px 140px;}
+
+  .spec-section{scroll-margin-top:66px;padding-top:10px;margin-bottom:76px;}
+  .spec-head{position:relative;padding:20px 24px;margin-bottom:30px;border:1px solid var(--border);
+    border-radius:var(--radius);background:linear-gradient(180deg,var(--surface),var(--bg-elev));}
+  .spec-head::before,.spec-head::after{content:'';position:absolute;width:11px;height:11px;border-color:var(--accent);}
+  .spec-head::before{top:-1px;left:-1px;border-style:solid;border-width:2px 0 0 2px;}
+  .spec-head::after{bottom:-1px;right:-1px;border-style:solid;border-width:0 2px 2px 0;}
+  .spec-code{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--accent);
+    text-transform:uppercase;margin-bottom:7px;}
+  .spec-head h2{margin:0;font-family:var(--sans);font-weight:600;font-size:26px;letter-spacing:-.01em;color:var(--text);}
+  .spec-head .dek{margin-top:9px;color:var(--text-dim);font-size:14px;line-height:1.6;max-width:640px;}
+
+  .spec-section h3{font-family:var(--mono);text-transform:uppercase;font-size:12.5px;letter-spacing:.1em;
+    color:var(--accent2);margin:38px 0 13px;padding-bottom:7px;border-bottom:1px solid var(--border-soft);}
+  .spec-section h4{font-size:15px;font-weight:600;color:var(--text);margin:20px 0 8px;}
+  .spec-section p{color:var(--text-dim);line-height:1.72;max-width:730px;margin:0 0 14px;}
+  .spec-section p.lead{color:var(--text);font-size:15.5px;}
+  .spec-section ul,.spec-section ol{color:var(--text-dim);line-height:1.72;max-width:730px;padding-left:20px;margin:0 0 14px;}
+  .spec-section li{margin-bottom:6px;}
+  .spec-section li b, .spec-section p b, .spec-section li strong{color:var(--text);font-weight:600;}
+  .spec-section a.inline{color:var(--accent2);text-decoration:underline;text-underline-offset:2px;}
+
+  table{width:100%;border-collapse:collapse;margin:18px 0 26px;font-size:13.5px;}
+  th,td{padding:10px 14px;border-bottom:1px solid var(--border-soft);text-align:left;vertical-align:top;}
+  th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);
+    background:var(--surface-2);font-weight:500;}
+  td{color:var(--text-dim);}
+  td b{color:var(--text);}
+  tr:hover td{background:rgba(255,255,255,.014);}
+
+  .ladder{display:grid;grid-template-columns:130px 1fr;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:18px 0 28px;}
+  .ladder>div{padding:13px 16px;border-bottom:1px solid var(--border-soft);font-size:13.5px;}
+  .ladder>div:nth-child(odd){font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--surface);}
+  .ladder>div:nth-child(even){color:var(--text-dim);background:var(--bg-elev);}
+  .ladder>div:nth-last-child(-n+2){border-bottom:none;}
+
+  .tag-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 22px;}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent2);
+    border:1px solid var(--accent2);background:var(--accent2-soft);padding:5px 11px;border-radius:2px;}
+
+  .badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:2px;}
+  .badge-normal{color:var(--accent2);background:var(--accent2-soft);border:1px solid var(--accent2);}
+  .badge-enterprise{color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);}
+
+  pre{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;
+    overflow-x:auto;margin:14px 0 22px;}
+  pre code{font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--accent2);white-space:pre;}
+  .code-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);margin-bottom:-8px;display:block;}
+
+  .example-box{border-left:3px solid var(--accent2);background:var(--accent2-soft);padding:16px 20px;margin:18px 0 22px;border-radius:0 var(--radius) var(--radius) 0;}
+  .example-box .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;display:block;}
+  .example-box p{margin-bottom:8px;}
+  .example-box p:last-child{margin-bottom:0;}
+
+  .callout{border:1px solid var(--accent);background:var(--accent-soft);padding:16px 20px;margin:18px 0 22px;border-radius:var(--radius);}
+  .callout .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;display:block;}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-top:10px;}
+  .tab-btn{background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.08em;padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;}
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab-panel{display:none;padding:20px 0 4px;}
+  .tab-panel.active{display:block;}
+
+  /* accordion */
+  .acc-item{border:1px solid var(--border-soft);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;background:var(--bg-elev);}
+  .acc-trigger{width:100%;text-align:left;background:var(--surface);padding:13px 16px;font-family:var(--sans);
+    font-size:13.5px;color:var(--text);cursor:pointer;border:none;display:flex;justify-content:space-between;align-items:center;}
+  .acc-trigger .chev{color:var(--accent);font-family:var(--mono);transition:transform .18s;}
+  .acc-item.open .chev{transform:rotate(180deg);}
+  .acc-body{max-height:0;overflow:hidden;transition:max-height .22s ease;}
+  .acc-item.open .acc-body{max-height:900px;}
+  .acc-body-in{padding:14px 16px;font-size:13.5px;color:var(--text-dim);line-height:1.7;}
+  .acc-body-in p{margin:0 0 8px;}
+  .acc-body-in p:last-child{margin:0;}
+
+  /* checklist (appendix) */
+  .chk-cat{margin:30px 0 6px;display:flex;align-items:center;gap:10px;}
+  .chk-cat .num{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+  .chk-cat h4{margin:0;font-size:14.5px;color:var(--text);}
+  .chk-list{list-style:none;padding:0;margin:10px 0 8px;display:grid;grid-template-columns:1fr;gap:0;}
+  .chk-list li{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13.3px;color:var(--text-dim);}
+  .chk-list li input{margin-top:3px;accent-color:var(--accent);}
+  .chk-list li b{color:var(--text);font-weight:600;}
+
+  footer.docfoot{border-top:1px solid var(--border);margin-top:60px;padding-top:22px;font-family:var(--mono);
+    font-size:11px;color:var(--text-faint);letter-spacing:.04em;}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important;}}
+
+  @media (max-width:900px){
+    .hbtn{display:block;}
+    .sidebar{transform:translateX(-100%);transition:transform .2s;box-shadow:20px 0 40px rgba(0,0,0,.4);}
+    .sidebar.open{transform:translateX(0);}
+    main{margin-left:0;}
+    .content-wrap{padding:40px 22px 100px;}
+    .meta{display:none;}
+  }
+
+  @media print{
+    .topbar,.sidebar,#progress,.hbtn{display:none!important;}
+    main{margin-left:0;padding-top:0;}
+    body{background:#fff;color:#111;}
+    .spec-head{background:#f4f4f4;border-color:#ccc;}
+    .spec-code,.spec-head h2,td b,.spec-section li b{color:#111;}
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <button class="hbtn" id="hbtn" aria-label="Toggle navigation">☰</button>
+    <div class="brand"><span class="node"></span><b>OMNIA</b><span>Build Specification</span></div>
+  </div>
+  <div class="meta"><span>Rev 1.0</span><span><em>Capstone</em> / Defense-Ready</span><span>Jul 2026</span></div>
+</div>
+
+<nav class="sidebar" id="sidebar">
+  <div class="navgroup">Foundation</div>
+  <a class="navlink" href="#phil"><span class="code">OM–00</span>Operating Philosophy</a>
+  <a class="navlink" href="#req"><span class="code">OM–01</span>Requirements</a>
+  <a class="navlink" href="#ux"><span class="code">OM–02</span>UI / UX System</a>
+
+  <div class="navgroup">Access</div>
+  <a class="navlink" href="#gate"><span class="code">OM–03</span>Home, Login &amp; Sign-Up Gate</a>
+
+  <div class="navgroup">System</div>
+  <a class="navlink" href="#fe"><span class="code">OM–04</span>Frontend Architecture</a>
+  <a class="navlink" href="#be"><span class="code">OM–05</span>Backend Architecture</a>
+
+  <div class="navgroup">Product</div>
+  <a class="navlink" href="#feat"><span class="code">OM–06</span>Feature Set</a>
+  <a class="navlink" href="#exp"><span class="code">OM–07</span>Experience Design</a>
+  <a class="navlink" href="#qa"><span class="code">OM–08</span>Quality &amp; Operations</a>
+
+  <div class="navgroup">Core Engine</div>
+  <a class="navlink" href="#pipeline"><span class="code">OM–09</span>Title → Agent Pipeline</a>
+
+  <div class="navgroup">Ship</div>
+  <a class="navlink" href="#ship"><span class="code">OM–10</span>Defense Readiness &amp; Roadmap</a>
+  <a class="navlink" href="#audit"><span class="code">APP A</span>Quality Audit Checklist</a>
+  <a class="navlink" href="#gloss"><span class="code">APP B</span>Stack Summary &amp; Glossary</a>
+</nav>
+
+<main>
+<div class="content-wrap">
+
+  <section class="spec-section" id="phil">
+    <div class="spec-head">
+      <span class="spec-code">OM–00 / Foundation</span>
+      <h2>Operating Philosophy</h2>
+      <div class="dek">Five working traditions, compressed into one ladder — Philosophy → Method → Technique → Practice → Policy — applied to every decision in this document.</div>
+    </div>
+
+    <p class="lead">OMNIA doesn't need an invented philosophy. It needs five borrowed ones, each already proven at large scale, fused into a single operating ladder that turns belief into an enforceable rule. That ladder is used repeatedly through this whole specification: every major section ends by walking its subject down the same five rungs.</p>
+
+    <div class="tag-row">
+      <span class="tag">Silicon Valley</span>
+      <span class="tag">Musk Method</span>
+      <span class="tag">Apple Craft</span>
+      <span class="tag">8200 Mission Culture</span>
+      <span class="tag">Shenzhen Speed</span>
+    </div>
+
+    <h3>The Ladder</h3>
+    <p>Five rungs, each answering a different question. A philosophy that never reaches Policy is just an opinion; a policy with no Philosophy behind it is just a rule nobody understands well enough to defend under questioning — which is exactly what a defense day tests.</p>
+    <div class="ladder">
+      <div>Philosophy</div><div>The belief. <b>Why</b> this matters more than it looks like it should.</div>
+      <div>Method</div><div>The repeatable approach. <b>How</b>, in general, this belief becomes action.</div>
+      <div>Technique</div><div>The specific tactic. <b>How, concretely</b>, for OMNIA's actual stack and constraints.</div>
+      <div>Practice</div><div>The habit or ritual that keeps the method alive day to day.</div>
+      <div>Policy</div><div>The rule that makes it non-negotiable — the thing a code reviewer or a committee can check.</div>
+    </div>
+
+    <h3>Lens 1 — Silicon Valley: Ambition Gated by Reality</h3>
+    <p>The Valley's real contribution isn't optimism — it's the discipline of shipping a small, real thing to real users before the idea is fully believed in, then letting usage (not internal conviction) decide what grows. For a solo capstone with a defense date and no external dataset, this reframes ambition: OMNIA doesn't need every layer working perfectly, it needs the thinnest version of the whole loop — title in, agent out — working end to end before any single stage gets deepened.</p>
+    <p><b>Practice:</b> build the shortest possible path through all nine pipeline stages first (even with weak generation quality), then go back and deepen one stage at a time. <b>Policy:</b> nothing gets polished past "good enough" until the full loop runs at least once.</p>
+
+    <h3>Lens 2 — The Musk Method: Requirements Are Guilty Until Proven Innocent</h3>
+    <p>Widely described across interviews about Musk's engineering approach at his companies, the method runs in a strict, non-negotiable order: interrogate every requirement and attach an owner's name to it, so vague rules can't hide behind authority; then try hard to delete the part or step entirely, rather than improve it; only once something survives deletion do you simplify what's left; only after it's simple do you speed it up; and automation comes dead last, since automating a step that should have been deleted just makes the mistake faster. The order is the whole method — most teams jump straight to the last two steps.</p>
+    <p>Applied to OMNIA: before adding any field to the Architect interview, ask who actually needs that field answered and why — most of what a traditional "agent builder" asks the user (name, category, icon, tags, tone sliders) should be <i>inferred</i>, not asked, which is the entire justification for the title-to-agent pipeline in <a class="inline" href="#pipeline">OM–09</a>.</p>
+    <p><b>Technique:</b> every proposed input field or setting gets a one-line "why does a human have to answer this" note before it's built; if the honest answer is "the model could infer it," it's deleted from the form and moved into the pipeline instead. <b>Policy:</b> no UI ships a required field that an LLM call could have filled with equal or better accuracy.</p>
+
+    <h3>Lens 3 — Apple: Say No to Everything That Isn't the Point</h3>
+    <p>Apple's Human Interface Guidelines reduce to three words — clarity, deference, depth — but the harder, less-quoted discipline underneath them is subtraction: a legendary amount of what could be built is deliberately left out so the one thing that remains is unmistakable. For OMNIA that "one thing" is the Explore / Create / Yours structure staying exactly three tabs, forever, no matter how many capabilities get added underneath.</p>
+    <p><b>Practice:</b> any new capability must be placed inside one of the three existing tabs; if it doesn't fit any of them, that's a signal to cut it, not to add a fourth tab. <b>Policy:</b> the top-level navigation is frozen at three destinations for the life of the product.</p>
+
+    <h3>Lens 4 — Unit 8200: Mission-Real Constraint as a Feature</h3>
+    <p>Israel's famed intelligence-technology unit produces a disproportionate number of startup founders not because of exceptional talent alone, but because of its structure: small teams, a real mission with real stakes, flat hierarchy where the newest person is expected to challenge an assumption regardless of who made it, and learning that happens by shipping under pressure rather than by lecture. A solo capstone with a fixed defense date and no external dataset to lean on is, structurally, the same shape — real deadline, real constraint, real audience, and no permission to fake depth in front of that audience.</p>
+    <p><b>Practice:</b> treat the "no external dataset" constraint as the mission parameter it is, not a gap to apologize for — it's precisely why <a class="inline" href="#pipeline">OM–09</a> is built around deterministic, self-contained scoring instead of a trained ranking model. <b>Policy:</b> every design choice this doc makes must be defensible out loud, unscripted, to someone questioning it — if a choice only works as a slide, it isn't finished.</p>
+
+    <h3>Lens 5 — Shenzhen: Design and Production Live Ten Feet Apart</h3>
+    <p>Shenzhen's manufacturing culture collapses the distance between designing something and building it — a prototype can be revised and re-fabricated the same day because the workshop is next door, not a quarter away. The equivalent for OMNIA is the self-critique / refinement loop inside the agent pipeline (stage 5 in <a class="inline" href="#pipeline">OM–09</a>): the "factory floor" for an agent spec is another LLM call, seconds away, so a weak draft never has to ship simply because revising it looked expensive.</p>
+    <p><b>Practice:</b> default to "generate, critique, regenerate the weak part" over "generate once, ship it" for anything the pipeline produces. <b>Policy:</b> no agent publishes without at least one critique-and-regenerate pass behind it.</p>
+
+    <div class="callout">
+      <span class="lbl">How this ladder is used from here on</span>
+      <p style="margin-bottom:0;color:var(--text)">Sections <a class="inline" href="#gate">OM–03</a> and <a class="inline" href="#pipeline">OM–09</a> apply this same five-rung ladder to a specific subsystem — the login gate, and the agent-generation engine — because those two are where "does this actually work under questioning" matters most on defense day.</p>
+    </div>
+  </section>
+
+  <section class="spec-section" id="req">
+    <div class="spec-head">
+      <span class="spec-code">OM–01 / Foundation</span>
+      <h2>Requirements</h2>
+      <div class="dek">Who this is for, what each page must do, and the non-functional bar it has to clear before it's defensible.</div>
+    </div>
+
+    <h3>Personas</h3>
+    <table>
+      <tr><th>Persona</th><th>Tier</th><th>Core need</th><th>Primary page</th></tr>
+      <tr><td><b>Explorer</b></td><td>—</td><td>Judge an agent's quality fast, before committing to it</td><td>Explore</td></tr>
+      <tr><td><b>Normal Creator</b></td><td>Normal</td><td>One useful agent, live, with minimal effort</td><td>Create</td></tr>
+      <tr><td><b>Enterprise Creator</b></td><td>Enterprise</td><td>A defensible, multi-capability agent with visible depth</td><td>Create</td></tr>
+      <tr><td><b>Returning Owner</b></td><td>Either</td><td>Manage, edit, version, or retire agents already made</td><td>Yours</td></tr>
+      <tr><td><b>Defense Committee</b></td><td>—</td><td>Push on any claim and see it hold up</td><td>All three</td></tr>
+    </table>
+
+    <h3>User stories</h3>
+    <ul>
+      <li>As a <b>Normal Creator</b>, I want to type a short title and get a usable agent in under a minute, so I don't have to understand agent design to publish something real.</li>
+      <li>As an <b>Enterprise Creator</b>, I want to see which layers my agent actually uses and why, so I can defend the design choices out loud.</li>
+      <li>As an <b>Explorer</b>, I want to filter published agents and see a quality score before adding one to my own library.</li>
+      <li>As a <b>Returning Owner</b>, I want version history, so re-generating never silently destroys the version that already worked.</li>
+    </ul>
+
+    <h3>Functional requirements, by page</h3>
+    <ul>
+      <li><b>Explore</b> — browse / search / filter published agents; show each agent's eval score; "add to Yours" action; a flag/report path for misuse.</li>
+      <li><b>Create</b> — tier selection; the guided Architect interview (pre-filled from inference, not asked cold); live pipeline progress; a review-and-edit step; test-drive with a visible score; publish.</li>
+      <li><b>Yours</b> — library of owned and added agents; per-agent version history; re-generate or edit; Appearance settings; Language settings; sign-out.</li>
+    </ul>
+
+    <h3>Non-functional requirements</h3>
+    <table>
+      <tr><th>Category</th><th>Requirement</th><th>Why it matters here</th></tr>
+      <tr><td><b>Security</b></td><td>Session auth on every route; tier-gated endpoints; no tool call bypasses the allowlisted registry</td><td>Agents can call tools — a gap here is a capability leak, not just a data leak</td></tr>
+      <tr><td><b>Reliability</b></td><td>Every pipeline stage degrades gracefully (a usable fallback) instead of hanging or erroring out</td><td>A stalled Create flow in front of a committee is the worst failure mode there is</td></tr>
+      <tr><td><b>Scalability</b></td><td>Generation runs as a background job, not a blocking request</td><td>Two tabs generating at once shouldn't visibly queue behind each other</td></tr>
+      <tr><td><b>Compliance / data handling</b></td><td>A stated rule for what's persisted (specs, versions) vs. ephemeral (scratch reasoning)</td><td>Gives you a clean, rehearsed answer if a committee asks where the data goes</td></tr>
+      <tr><td><b>Cost</b></td><td>A hard token/call ceiling per generation, enforced server-side</td><td>Protects your own API budget from a runaway multi-stage Enterprise run</td></tr>
+      <tr><td><b>Accessibility</b></td><td>WCAG AA contrast, full keyboard reachability, visible focus states</td><td>Covered in full in <a class="inline" href="#ux">OM–02</a></td></tr>
+    </table>
+
+    <h3>Success metrics</h3>
+    <ul>
+      <li>Time-to-first-agent — title submitted to published, end to end.</li>
+      <li>Generation quality score (from the eval layer, <a class="inline" href="#pipeline">OM–09</a>) trending upward across versions of the same agent.</li>
+      <li>Defense-day reliability — zero unrecovered failures across a full live run-through.</li>
+      <li>Reuse rate — the share of Explore agents added to more than one library.</li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="ux">
+    <div class="spec-head">
+      <span class="spec-code">OM–02 / Foundation</span>
+      <h2>UI / UX System</h2>
+      <div class="dek">Apple's three words, made literal — plus the settings scaffolding and the states every screen needs before it counts as finished.</div>
+    </div>
+
+    <h3>Apple HIG, mapped to an actual decision</h3>
+    <table>
+      <tr><th>Principle</th><th>What it means</th><th>The OMNIA decision it drives</th></tr>
+      <tr><td><b>Clarity</b></td><td>Legible text at every size, precise icons, negative space that does work</td><td>Three tabs stay uncluttered no matter how much Enterprise depth grows underneath them</td></tr>
+      <tr><td><b>Deference</b></td><td>Chrome recedes; the UI never competes with what the user made</td><td>Navigation hides behind one hamburger control instead of a permanent tab bar — see <a class="inline" href="#gate">OM–03</a></td></tr>
+      <tr><td><b>Depth</b></td><td>Layering and motion communicate hierarchy, not decoration</td><td>Pipeline progress in Create reveals stage by stage (<a class="inline" href="#exp">OM–07</a>) instead of showing a generic spinner</td></tr>
+    </table>
+
+    <h3>Design tokens, for OMNIA's own interface</h3>
+    <p>This document has its own visual system (see the sidebar and section frames around you) — the product's interface should have a distinct, simpler one. Keep it to a neutral base (two or three grays plus a background) and exactly one accent color tied to the brand, reserved for primary actions and the active nav state. Give the two tiers their own quiet badge colors so a glance tells you which one you're looking at, the same way this document marks Normal and Enterprise: <span class="badge badge-normal">Normal</span> <span class="badge badge-enterprise">Enterprise</span>.</p>
+
+    <h3>Appearance settings — proposed structure</h3>
+    <p>Ten controls, building outward from the two you already anchored on (font size and theme):</p>
+    <ol>
+      <li>Font size (small / medium / large)</li>
+      <li>Theme (light / dark / system)</li>
+      <li>Accent color</li>
+      <li>Density (comfortable / compact)</li>
+      <li>Corner sharpness (rounded / square)</li>
+      <li>Reduce-motion toggle</li>
+      <li>High-contrast mode</li>
+      <li>Code / data display font</li>
+      <li>Agent icon style</li>
+      <li>Default view for Explore and Yours (grid / list)</li>
+    </ol>
+
+    <h3>Language settings — proposed structure</h3>
+    <p>Fifteen controls, building outward from interface language:</p>
+    <ol>
+      <li>Interface language</li>
+      <li>Default response language for generated agents</li>
+      <li>Auto-translate toggle for agents published in another language</li>
+      <li>Date format</li>
+      <li>Time format (12-hour / 24-hour)</li>
+      <li>Number and decimal format</li>
+      <li>First day of the week</li>
+      <li>Right-to-left layout support</li>
+      <li>Spell-check dialect</li>
+      <li>Input-method / keyboard hints</li>
+      <li>Currency display, if a tier ever shows pricing</li>
+      <li>Unit system (metric / imperial), where an agent's domain uses either</li>
+      <li>Fallback language when a translation isn't available</li>
+      <li>Per-agent language override, independent of the interface language</li>
+      <li>Plain-language / simplified-reading mode</li>
+    </ol>
+
+    <h3>States, per page</h3>
+    <table>
+      <tr><th>State</th><th>Explore</th><th>Create</th><th>Yours</th></tr>
+      <tr><td><b>Empty</b></td><td>"No agents match yet" + a broaden-filter action</td><td>Blank Architect, seeded with example titles</td><td>"Nothing here yet" + a link to Explore</td></tr>
+      <tr><td><b>Loading</b></td><td>Skeleton cards</td><td>Live pipeline stages, not a spinner</td><td>Skeleton list</td></tr>
+      <tr><td><b>Error</b></td><td>Retry action, never a blank page</td><td>Names which stage failed; retries that stage, not the whole run</td><td>Retry per agent</td></tr>
+      <tr><td><b>Success</b></td><td>—</td><td>Test-drive score, then a publish confirmation</td><td>Toast confirming the save or new version</td></tr>
+    </table>
+
+    <h3>Accessibility checklist</h3>
+    <ul>
+      <li>Contrast meets WCAG AA at minimum, everywhere, not just on marketing screens.</li>
+      <li>Every interactive control is reachable and operable by keyboard alone.</li>
+      <li>Focus is always visible — never suppressed for looks.</li>
+      <li>Icon-only controls (the hamburger, tier badges) carry a real screen-reader label.</li>
+      <li>Reduced-motion preference is respected across every transition in the product.</li>
+      <li>Text remains usable at 200% zoom without breaking the layout.</li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="gate">
+    <div class="spec-head">
+      <span class="spec-code">OM–03 / Access</span>
+      <h2>Home, Login &amp; Sign-Up Gate</h2>
+      <div class="dek">No route past this point without a session. The whole section is that one rule, walked down the OM–00 ladder.</div>
+    </div>
+
+    <p class="lead">On first load, before anything else renders, OMNIA shows one screen: a one-line statement of what it does, and two actions — Sign up, Log in. Explore, Create, and Yours are not reachable in any form — not read-only, not greyed-out — until a session exists. There is a front door and no side entrance.</p>
+
+    <h3>The ladder, applied to this gate</h3>
+    <div class="ladder">
+      <div>Philosophy</div><div>Identity precedes capability. Publishing, tool calls, persisted memory, and tier billing are all meaningless without knowing who's asking — identity isn't a feature bolted on top of the app, it's the precondition for the app existing at all.</div>
+      <div>Method</div><div>Gate once, at the root — not per page. Delete the N separate "am I logged in" checks a page-by-page approach invites, and replace them with exactly one guard everything downstream can trust.</div>
+      <div>Technique</div><div>A single route guard runs before any page component mounts: valid session → render the authenticated shell with the hamburger nav; no session → render the landing gate and nothing else. Post-login, return the user to whatever they originally tried to reach.</div>
+      <div>Practice</div><div>Every new route added during development lands inside the guarded group by default. Making something public is the deliberate exception, and it gets checked at every build review.</div>
+      <div>Policy</div><div>No route under Explore, Create, or Yours is reachable, server-rendered, or client-navigable without a valid session. An unauthenticated hit always resolves to the landing gate — never a blank page, never a silent loop.</div>
+    </div>
+
+    <h3>The landing screen</h3>
+    <p>One hero line stating the objective, two primary actions, nothing else. No nav bar, no hamburger, no preview of internal pages — per the Apple lens in <a class="inline" href="#phil">OM–00</a>, showing a greyed-out tab you can't yet use is worse than showing none at all, because it promises access the screen can't deliver.</p>
+    <span class="code-label">wireframe — landing gate</span>
+    <pre><code>┌──────────────────────────────────────────┐
+│                                            │
+│               ●  OMNIA                    │
+│   Describe an agent. OMNIA builds it.     │
+│                                            │
+│      [  Sign up  ]   [  Log in  ]         │
+│                                            │
+└──────────────────────────────────────────┘
+  no nav · no tabs · no hamburger · nothing
+  behind the gate is visible from here</code></pre>
+
+    <h3>Sign-up vs. log-in</h3>
+    <ul>
+      <li><b>Sign-up</b> — minimal fields (email + password, or one OAuth option). New accounts start at Normal tier by default. Redirect lands in Explore — the one place with content to see on a first visit, since Yours is empty and Create hasn't been touched yet.</li>
+      <li><b>Log-in</b> — same minimal fields. Redirect returns the user to whatever route they originally tried to hit, or Yours if there wasn't one.</li>
+      <li><b>Forgot password / auth errors</b> — named plainly ("that password doesn't match," not "an error occurred") and never a dead end.</li>
+    </ul>
+
+    <h3>Three bars — where the hamburger actually lives</h3>
+    <p>The three-bar menu belongs to the authenticated shell, not the landing gate — there's nothing to navigate to before login, so nothing appears above the titles until a session exists. Once inside, it sits top-left of the app bar, above whichever page title is showing (Explore / Create / Yours), and opens a slide-over listing all three destinations plus Settings and Sign out. One small icon instead of a permanent tab bar is the same deference principle from <a class="inline" href="#ux">OM–02</a>, applied to navigation chrome specifically.</p>
+
+    <h3>Failure states</h3>
+    <ul>
+      <li><b>Session expires mid-use</b> — a soft redirect to the gate with one line ("Your session ended — log back in to continue"), and the original destination remembered for after re-auth.</li>
+      <li><b>Auth request fails on the network</b> — a clear retry state, never a blank screen. This matters as much on defense day as anywhere else.</li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="fe">
+    <div class="spec-head">
+      <span class="spec-code">OM–04 / System</span>
+      <h2>Frontend Architecture</h2>
+      <div class="dek">Next.js, React, TypeScript, Tailwind — organized so the guard in OM–03 and the live pipeline in OM–09 both have somewhere real to plug in.</div>
+    </div>
+
+    <h3>Folder structure</h3>
+    <span class="code-label">proposed layout</span>
+    <pre><code>app/
+  (public)/              landing gate only — no session required
+    page.tsx
+  (app)/                 guarded group — every route requires a session
+    explore/
+    create/
+    yours/
+    settings/
+components/
+  ui/                    design-system primitives (Button, Card, Badge, Input)
+  agent-builder/         ArchitectChat, PipelineProgress, TierToggle
+  layout/                AppShell, HamburgerNav, TopBar
+lib/
+  api/                   typed client for the FastAPI / NestJS backend
+  hooks/                 useSession, useGenerationStream
+  schemas/               zod schemas mirroring the backend contracts
+stores/
+  session.ts
+  generation.ts</code></pre>
+
+    <h3>Component layering</h3>
+    <p>Primitives (the design-system layer: buttons, cards, badges, inputs) compose into feature components (ArchitectChat, AgentCard, TierToggle, PipelineProgress, HamburgerNav), which assemble into the three page-level views. Nothing in a page component owns its own one-off styling — it's built from the layer below, which is what keeps Explore, Create, and Yours feeling like one product instead of three.</p>
+
+    <h3>State management</h3>
+    <ul>
+      <li><b>Server state</b> — anything the backend owns (agent lists, versions, profile) goes through React Query, so caching and refetching aren't hand-rolled per page.</li>
+      <li><b>Client / UI state</b> — sidebar-open, active tab, theme: a lightweight store (Zustand or equivalent), kept separate from server state on purpose.</li>
+      <li><b>Generation state</b> — a dedicated <code style="color:var(--accent2)">useGenerationStream</code> hook subscribes to the backend's SSE/WebSocket channel and feeds a generation store that <code style="color:var(--accent2)">PipelineProgress</code> reads from. This is what makes the live-preview stage in <a class="inline" href="#pipeline">OM–09</a> possible instead of a spinner standing in for real progress.</li>
+    </ul>
+
+    <h3>Auth on the frontend</h3>
+    <p>The guard from <a class="inline" href="#gate">OM–03</a> lives at the layout level of the <code style="color:var(--accent2)">(app)</code> group: it reads session state before rendering any child route, and redirects to <code style="color:var(--accent2)">(public)</code> on failure. Every page inside that group can assume, without re-checking, that a session already exists by the time it renders.</p>
+
+    <h3>Performance</h3>
+    <ul>
+      <li>Route-level code splitting, which the app router gives you by default — don't undo it with one giant shared bundle.</li>
+      <li>ISR for the Explore feed, so a popular page isn't hitting the database on every single request.</li>
+      <li>Optimized images for agent icons/avatars; skeleton components for every loading state defined in <a class="inline" href="#ux">OM–02</a>.</li>
+    </ul>
+
+    <h3>Testing</h3>
+    <p>Unit tests (Jest + React Testing Library) for components and hooks. End-to-end (Playwright) concentrated on the two highest-risk paths: the full Create flow, title to published agent, and the auth gate — every guarded route correctly redirects when logged out, and correctly returns to the intended page after login.</p>
+  </section>
+
+  <section class="spec-section" id="be">
+    <div class="spec-head">
+      <span class="spec-code">OM–05 / System</span>
+      <h2>Backend Architecture</h2>
+      <div class="dek">FastAPI or NestJS, Postgres, Redis, and a vector store — arranged around one fact: generation is a job, not a request.</div>
+    </div>
+
+    <h3>API surface</h3>
+    <table>
+      <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
+      <tr><td><code style="color:var(--accent2)">/auth/signup · /auth/login · /auth/session</code></td><td>POST / GET</td><td>Session issuance — the mechanism behind <a class="inline" href="#gate">OM–03</a>'s gate</td></tr>
+      <tr><td><code style="color:var(--accent2)">/agents</code></td><td>GET / POST</td><td>List or create agent records</td></tr>
+      <tr><td><code style="color:var(--accent2)">/agents/{id}</code></td><td>GET / PATCH / DELETE</td><td>Read, edit, or retire a single agent</td></tr>
+      <tr><td><code style="color:var(--accent2)">/agents/{id}/generate</code></td><td>POST</td><td>Kicks off the title-to-agent pipeline as a background job</td></tr>
+      <tr><td><code style="color:var(--accent2)">/agents/{id}/events</code></td><td>GET (SSE)</td><td>Streams pipeline progress to the frontend's <code style="color:var(--accent2)">useGenerationStream</code></td></tr>
+      <tr><td><code style="color:var(--accent2)">/agents/{id}/evaluate</code></td><td>POST</td><td>Runs the eval layer's test-drive scoring</td></tr>
+      <tr><td><code style="color:var(--accent2)">/agents/{id}/versions</code></td><td>GET</td><td>Version history</td></tr>
+      <tr><td><code style="color:var(--accent2)">/explore</code></td><td>GET</td><td>Search and filter published agents</td></tr>
+      <tr><td><code style="color:var(--accent2)">/settings/appearance · /settings/language</code></td><td>GET / PATCH</td><td>The settings defined in <a class="inline" href="#ux">OM–02</a></td></tr>
+    </table>
+
+    <h3>Auth &amp; tiering</h3>
+    <p>A session is issued at login and read once, by a single middleware, alongside the user's tier. That middleware — not each individual handler — decides whether an Enterprise-only stage of <code style="color:var(--accent2)">/agents/{id}/generate</code> is allowed to run. Same method as <a class="inline" href="#gate">OM–03</a>: gate once, centrally, not per-handler.</p>
+
+    <h3>Data model, conceptual</h3>
+    <table>
+      <tr><th>Table</th><th>Holds</th><th>Notes</th></tr>
+      <tr><td><b>users</b></td><td>id, email, password hash, tier, appearance/language settings</td><td>Tier decides which pipeline path <a class="inline" href="#pipeline">OM–09</a> takes</td></tr>
+      <tr><td><b>agents</b></td><td>id, owner_id, title, current_version_id, visibility</td><td>Visibility is draft or published</td></tr>
+      <tr><td><b>agent_versions</b></td><td>id, agent_id, version_number, spec (json), created_at</td><td>One row per publish or re-generation — this is the version-history requirement from <a class="inline" href="#req">OM–01</a></td></tr>
+      <tr><td><b>agent_specs</b></td><td>the compiled system prompt plus each layer's config</td><td>Produced by pipeline stage 4</td></tr>
+      <tr><td><b>evaluations</b></td><td>agent_version_id, rubric scores (json), overall score</td><td>Produced by pipeline stage 8</td></tr>
+      <tr><td><b>tool_registry</b></td><td>id, name, description, allowlisted parameter schema</td><td>The only thing the Tools layer is allowed to call</td></tr>
+      <tr><td><b>memory_records</b></td><td>agent_id, user_id (if persistent), embedding, content</td><td>Lives in the vector store, not Postgres</td></tr>
+    </table>
+
+    <h3>Redis</h3>
+    <p>Three jobs, one store: the pipeline's job queue, a cache in front of the Explore feed, and rate-limit counters per user and per tier.</p>
+
+    <h3>Vector store</h3>
+    <p>Agent memory embeddings for the Memory layer, knowledge-scaffold retrieval for the Knowledge layer, and similarity search powering "agents like this one" on Explore.</p>
+
+    <h3>Job orchestration</h3>
+    <p><code style="color:var(--accent2)">/agents/{id}/generate</code> never blocks. It enqueues a job graph — one task per pipeline stage — and each task emits a progress event that Redis relays to the SSE endpoint. This is the actual mechanism behind the "live preview" stage in <a class="inline" href="#pipeline">OM–09</a>; without it, the frontend has nothing real to stream.</p>
+
+    <h3>Observability</h3>
+    <p>Structured logs per stage (name, latency, token count, cost) and tracing across the whole job graph, so a failed generation traces back to the exact stage and prompt that failed rather than a generic "generation failed" message. Per-tier cost dashboards make the cost ceiling from <a class="inline" href="#req">OM–01</a> something you can actually see, not just a rule on paper.</p>
+
+    <h3>Security</h3>
+    <ul>
+      <li>Input validation on every endpoint via typed schemas — nothing reaches business logic unvalidated.</li>
+      <li>Rate limiting per user and per tier, backed by Redis.</li>
+      <li>Secrets never reach the frontend; API keys are injected server-side only.</li>
+      <li><b>Prompt-injection defense</b> — since generated agents call tools, every call is routed through the allowlisted registry with output filtering before execution. Content from the agent's own knowledge layer, or from a user's input, is only ever allowed to fill parameters inside a pre-approved call — never to choose which tool runs.</li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="feat">
+    <div class="spec-head">
+      <span class="spec-code">OM–06 / Product</span>
+      <h2>Feature Set</h2>
+      <div class="dek">What Normal and Enterprise actually differ on, and the handful of features that make OMNIA feel like a 10x product rather than a form with extra steps.</div>
+    </div>
+
+    <h3>Normal vs. Enterprise</h3>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-normal">Normal</button>
+      <button class="tab-btn" data-tab="tab-enterprise">Enterprise</button>
+    </div>
+    <div class="tab-panel active" id="tab-normal">
+      <table>
+        <tr><th>Dimension</th><th>Behavior</th></tr>
+        <tr><td>Pipeline</td><td>Collapsed — intent inference and system-prompt synthesis run as one enriched call, no layer mapping shown</td></tr>
+        <tr><td>Capability</td><td>Single capability, matched tightly to the title</td></tr>
+        <tr><td>Eval</td><td>A short rubric (3 dimensions), shown as a pass/needs-work signal</td></tr>
+        <tr><td>Layer visibility</td><td>Hidden — the creator sees the result, not the machinery</td></tr>
+        <tr><td>Publish</td><td>Straight to Explore once the eval passes</td></tr>
+      </table>
+    </div>
+    <div class="tab-panel" id="tab-enterprise">
+      <table>
+        <tr><th>Dimension</th><th>Behavior</th></tr>
+        <tr><td>Pipeline</td><td>Full nine stages, including layer mapping and a self-critique pass</td></tr>
+        <tr><td>Capability</td><td>Multi-capability, with explicit scope and guardrails</td></tr>
+        <tr><td>Eval</td><td>A full rubric across every active layer, with a numeric score</td></tr>
+        <tr><td>Layer visibility</td><td>Visible — knowledge, memory, tools, plans, and eval are each shown and editable</td></tr>
+        <tr><td>Publish</td><td>Test-drive required before publish; every re-generation creates a new version, diffed against the last</td></tr>
+      </table>
+    </div>
+
+    <h3>Signature features</h3>
+    <ul>
+      <li><b>One-input creation</b> — a title in, a complete agent out. Every other field in the Architect is inferred first, edited second.</li>
+      <li><b>Live, streamed generation</b> — the pipeline's progress is visible stage by stage, not hidden behind a spinner.</li>
+      <li><b>A deterministic eval report before publish</b> — with no external dataset to train a ranking model on, the score has to be rule-based and shown openly rather than implied.</li>
+      <li><b>Versioning, not just creation</b> — an agent can be re-generated and improved without losing what already worked.</li>
+      <li><b>Enterprise depth made visible</b> — the five-layer breakdown is the actual, checkable difference between tiers, not a marketing label.</li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="exp">
+    <div class="spec-head">
+      <span class="spec-code">OM–07 / Product</span>
+      <h2>Experience Design</h2>
+      <div class="dek">The Architect interview, redesigned around inference instead of interrogation — plus what has to hold up if the network doesn't, on the one day it can't afford to fail.</div>
+    </div>
+
+    <h3>The Architect, redesigned</h3>
+    <p>The guided interview is pre-filled from inference — the pipeline's early stages (see <a class="inline" href="#pipeline">OM–09</a>) draft an answer to every question before the creator sees it. The creator edits, rather than authors from a blank field. It runs as an explicit state machine of steps, each with a defined "answered" state, rather than an open-ended chat — which is also what keeps it from re-asking a question it already has an answer to.</p>
+
+    <h3>Micro-interactions</h3>
+    <p>Generation reveals stage by stage as it happens, matching the Shenzhen lens from <a class="inline" href="#phil">OM–00</a> — visible progress, not a black box. State transitions get a short, subtle motion cue; nothing beyond that is animated for its own sake.</p>
+
+    <h3>Error and empty states, in voice</h3>
+    <p>Every error names what happened and what to do next, in the product's own voice — never vague, never apologetic on the user's behalf. Every empty screen (see the states table in <a class="inline" href="#ux">OM–02</a>) reads as an invitation to act, not a dead end.</p>
+
+    <h3>Defense-day resilience</h3>
+    <ul>
+      <li><b>Demo-reset scripts</b> — a fast, reliable way to reset to a known-good state right before presenting.</li>
+      <li><b>Seeded fallback agents</b> — at least one fully worked example (see the walkthrough in <a class="inline" href="#pipeline">OM–09</a>) that can be shown even if live generation fails.</li>
+      <li><b>Deterministic replay</b> — if the network drops mid-defense, the pipeline can replay a previously recorded run from stored stage events instead of requiring a live call. Same UI, same stage-by-stage reveal, no live dependency.</li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="qa">
+    <div class="spec-head">
+      <span class="spec-code">OM–08 / Product</span>
+      <h2>Quality &amp; Operations</h2>
+      <div class="dek">Testing, delivery, cost, and documentation — the parts that don't demo well but are exactly what a committee asks about.</div>
+    </div>
+
+    <h3>Testing pyramid</h3>
+    <p>Unit tests at the base, integration tests around the API layer, end-to-end tests on the two critical paths from <a class="inline" href="#fe">OM–04</a>, and — specifically for this product — a load test aimed at the generation pipeline itself, since LLM calls are both the bottleneck and the cost center.</p>
+
+    <h3>CI/CD</h3>
+    <p>Lint, type-check, and test gates before anything merges; a preview deploy per branch; a staged rollout rather than pushing straight to what you'll demo from.</p>
+
+    <h3>Cost governance</h3>
+    <p>The per-generation token ceiling from <a class="inline" href="#req">OM–01</a> is enforced server-side, with tier-based quotas on top of it, and a cost dashboard you can check the morning of a demo rather than finding out afterward.</p>
+
+    <h3>Scalability, if and when it needs to grow</h3>
+    <p>Worker count scales with queue depth for pipeline jobs; database connection pooling and read replicas are a later-stage concern, not a day-one requirement — worth naming in this doc so it reads as a considered decision, not an oversight.</p>
+
+    <h3>Documentation</h3>
+    <p>An architecture diagram, an API reference, and a defense-day runbook — a short, literal document listing what to say and do if a specific piece breaks live. This document, and the checklist in <a class="inline" href="#audit">Appendix A</a>, are both inputs to that runbook.</p>
+  </section>
+
+  <section class="spec-section" id="pipeline">
+    <div class="spec-head">
+      <span class="spec-code">OM–09 / Core Engine</span>
+      <h2>Title → Agent Pipeline</h2>
+      <div class="dek">The actual mechanism behind "type a title, get a sophisticated agent" — nine chained stages, each one structured LLM call with exactly one job.</div>
+    </div>
+
+    <p class="lead">The first-principles move here, per the Musk lens in <a class="inline" href="#phil">OM–00</a>, is refusing to ask the creator to model the agent. Every field a lesser builder would put in a form gets inferred first; the creator's only real job is to correct what's wrong, not author what's right.</p>
+
+    <h3>The nine stages, at a glance</h3>
+    <table>
+      <tr><th>#</th><th>Stage</th><th>Tier</th><th>Produces</th></tr>
+      <tr><td>1</td><td>Intent Inference</td><td>Both</td><td>Domain, target user, job-to-be-done, tone</td></tr>
+      <tr><td>2</td><td>Scope &amp; Guardrails</td><td>Both</td><td>What it will and won't do; ambition level</td></tr>
+      <tr><td>3</td><td>Layer Mapping</td><td><span class="badge badge-enterprise">Enterprise</span></td><td>Depth across knowledge, memory, tools, plans, eval</td></tr>
+      <tr><td>4</td><td>System Prompt Synthesis</td><td>Both</td><td>The actual runtime configuration</td></tr>
+      <tr><td>5</td><td>Self-Critique &amp; Refinement</td><td>Full on Enterprise, light on Normal</td><td>A revised, stronger spec</td></tr>
+      <tr><td>6</td><td>Live Preview</td><td>Both</td><td>Streamed stage events to the UI</td></tr>
+      <tr><td>7</td><td>User Review</td><td>Both</td><td>An edited, creator-approved spec</td></tr>
+      <tr><td>8</td><td>Test-Drive &amp; Score</td><td>Both</td><td>Rubric scores and an overall number</td></tr>
+      <tr><td>9</td><td>Publish &amp; Version</td><td>Both</td><td>A live, versioned agent</td></tr>
+    </table>
+
+    <h3>Stage 1 — Intent Inference</h3>
+    <p>One call takes the title, plus an optional one-line description if the creator gave one, and infers what the agent is actually for. Structured output only — no free text the rest of the pipeline would have to re-parse.</p>
+    <span class="code-label">example output — title: "Customer Onboarding Concierge"</span>
+    <pre><code>{
+  "domain": "e-commerce customer onboarding",
+  "target_user": "new customers of a mid-size online retailer",
+  "job_to_be_done": "walk a new customer through setup and their first purchase without friction",
+  "tone": "warm, brief, never pushy"
+}</code></pre>
+
+    <h3>Stage 2 — Scope &amp; Guardrails</h3>
+    <p>Defines the edges before anything else is built on top of them — what the agent will do, what it explicitly won't, and how ambitious to be given the tier.</p>
+    <pre><code>{
+  "will_do": ["answer setup questions", "recommend next steps", "escalate to a human on request"],
+  "will_not_do": ["process payments directly", "promise specific shipping dates"],
+  "ambition_level": "enterprise-multi-capability"
+}</code></pre>
+
+    <h3>Stage 3 — Layer Mapping <span class="badge badge-enterprise">Enterprise</span></h3>
+    <p>Decides how deep each of the five layers needs to go, and — since there's no external dataset behind any of this — generates each one as a self-contained, synthetic scaffold rather than pulling from training data.</p>
+    <table>
+      <tr><th>Layer</th><th>Question it answers</th><th>How it's built without external data</th></tr>
+      <tr><td><b>Knowledge</b></td><td>What does it need to know?</td><td>An LLM-generated topic/rule scaffold, validated by the critique pass in Stage 5</td></tr>
+      <tr><td><b>Memory</b></td><td>What should it remember, and for how long?</td><td>A schema decision — session-only vs. persistent — not a trained preference</td></tr>
+      <tr><td><b>Tools</b></td><td>What can it actually do?</td><td>A mapping onto the existing allowlisted <code style="color:var(--accent2)">tool_registry</code> from <a class="inline" href="#be">OM–05</a> — never an invented capability</td></tr>
+      <tr><td><b>Plans</b></td><td>Single response, or multi-step?</td><td>A declared strategy (single-shot vs. a diagnose-suggest-confirm loop), not left implicit</td></tr>
+      <tr><td><b>Eval</b></td><td>What does "good" mean for this agent?</td><td>A deterministic rubric plus a fixed set of test prompts, scored the same way every time</td></tr>
+    </table>
+    <pre><code>{
+  "knowledge": { "scaffold_topics": ["account setup", "first-purchase flow", "common blockers"], "retrieval": "runtime FAQ lookup" },
+  "memory": { "type": "session + 30-day persistent", "remembers": "onboarding step completed, prior questions asked" },
+  "tools": ["lookup_order_status", "send_setup_email", "escalate_to_human"],
+  "plans": "multi-step: diagnose blocker -> suggest fix -> confirm resolution",
+  "eval": { "dimensions": ["relevance","safety","tone_match","task_completion"], "test_prompts": 6 }
+}</code></pre>
+
+    <h3>Stage 4 — System Prompt Synthesis</h3>
+    <p>Stages 1 through 3 compile into the one artifact that actually drives the agent at runtime.</p>
+    <span class="code-label">template skeleton</span>
+    <pre><code>You are {agent_name}, built to {job_to_be_done}.
+Scope: you will {will_do_list}. You will not {will_not_do_list}.
+Tone: {tone}.
+Knowledge: draw on {knowledge_scaffold_topics}; if you're unsure, say so rather than guess.
+Tools available: {tools_list} — call only these, only with their defined parameters.
+Planning approach: {plan_strategy}.</code></pre>
+
+    <h3>Stage 5 — Self-Critique &amp; Refinement</h3>
+    <p>The Shenzhen lens from <a class="inline" href="#phil">OM–00</a>, made literal: the draft spec is fed back to the model with a critique prompt, and only the weak parts get regenerated — not the whole thing.</p>
+    <div class="example-box">
+      <span class="lbl">critique dimensions</span>
+      <p>Does this fulfill the title's actual intent? Is it differentiated from a generic template agent? Is the claimed Enterprise depth real, not decorative? Are the guardrails from Stage 2 enforced in the prompt, not just stated?</p>
+    </div>
+
+    <h3>Stage 6 — Live Preview</h3>
+    <p>Each stage above emits a progress event the moment it finishes — the mechanism described in <a class="inline" href="#be">OM–05</a>'s job orchestration — so the Architect UI shows real work happening, stage by stage, rather than an opaque wait.</p>
+
+    <h3>Stage 7 — User Review</h3>
+    <p>The Architect interview from <a class="inline" href="#exp">OM–07</a> opens already filled in with everything above. The creator's job is to correct, not compose.</p>
+
+    <h3>Stage 8 — Test-Drive &amp; Score</h3>
+    <p>The eval layer's test prompts run automatically against the synthesized agent, each rubric dimension scored 0–5, rolled up into one overall number the creator sees before publish is even offered.</p>
+    <pre><code>{
+  "relevance": 4.5, "safety": 5.0, "tone_match": 4.0, "task_completion": 4.3,
+  "overall_score": 4.45
+}</code></pre>
+
+    <h3>Stage 9 — Publish &amp; Version</h3>
+    <p>Publishing writes a new row to <code style="color:var(--accent2)">agent_versions</code> rather than overwriting the last one. Re-generating later diffs against the version that's currently live, so improving an agent is never destructive.</p>
+
+    <h3>The Normal-tier path</h3>
+    <p>Stages 1, 2, and 4 collapse into a single enriched call; Stage 3's layer mapping is skipped entirely; Stage 5 runs a lighter, single-pass check instead of a full critique loop; Stage 8's eval uses a shorter, three-dimension rubric. The shape of the pipeline is identical — it's the depth at each stage that changes with tier.</p>
+
+    <h3>Worked example, start to finish</h3>
+    <p>Title in: <b>"Customer Onboarding Concierge."</b> Tier: Enterprise. Below is the same object moving through all nine stages.</p>
+    <div class="example-box"><span class="lbl">1 · Intent</span><p>E-commerce onboarding agent for new customers of a mid-size retailer; warm, brief, never pushy.</p></div>
+    <div class="example-box"><span class="lbl">2 · Scope</span><p>Will answer setup questions and escalate to a human; will not process payments or promise shipping dates.</p></div>
+    <div class="example-box"><span class="lbl">3 · Layers</span><p>Knowledge scaffold on setup/first-purchase/common blockers; 30-day persistent memory of onboarding progress; three allowlisted tools; a diagnose-suggest-confirm plan; a four-dimension eval rubric.</p></div>
+    <div class="example-box"><span class="lbl">4 · Synthesis</span><p>The template above, filled in — this is the actual system prompt the live agent runs on.</p></div>
+    <div class="example-box"><span class="lbl">5 · Critique</span><p>First draft was too generic on "common blockers" — the critique pass flagged it and regenerated just that one field with retailer-specific examples.</p></div>
+    <div class="example-box"><span class="lbl">6–7 · Preview &amp; Review</span><p>Creator watches all five stages complete live, then edits the tone from "warm" to "warm, slightly playful" before continuing.</p></div>
+    <div class="example-box"><span class="lbl">8 · Score</span><p>4.45 / 5 overall, shown before publish is offered.</p></div>
+    <div class="example-box"><span class="lbl">9 · Publish</span><p>Goes live as v1. A future re-generation becomes v2, diffed against this one.</p></div>
+  </section>
+
+  <section class="spec-section" id="ship">
+    <div class="spec-head">
+      <span class="spec-code">OM–10 / Ship</span>
+      <h2>Defense Readiness &amp; Roadmap</h2>
+      <div class="dek">Five phases to get there, and the demo script to run once you have.</div>
+    </div>
+
+    <h3>Phased roadmap</h3>
+    <table>
+      <tr><th>Phase</th><th>Goal</th></tr>
+      <tr><td><b>1 · Foundation</b></td><td>Auth gate (<a class="inline" href="#gate">OM–03</a>), basic agent CRUD, the three-page shell — no generation yet</td></tr>
+      <tr><td><b>2 · Normal pipeline</b></td><td>The collapsed pipeline working end to end for one capability</td></tr>
+      <tr><td><b>3 · Enterprise pipeline</b></td><td>All nine stages, full layer mapping, the critique loop</td></tr>
+      <tr><td><b>4 · Polish &amp; accessibility</b></td><td>A full HIG pass, Appearance and Language settings, every state in <a class="inline" href="#ux">OM–02</a> designed</td></tr>
+      <tr><td><b>5 · Defense readiness</b></td><td>Offline fallback, demo-reset scripts, a seeded worked example, a rehearsal against <a class="inline" href="#audit">Appendix A</a></td></tr>
+    </table>
+
+    <h3>Demo script skeleton</h3>
+    <ol>
+      <li>Open on the landing gate; sign in.</li>
+      <li>Show Explore with a few seeded agents already published.</li>
+      <li>Live-create one agent from just a title, narrating each pipeline stage as it streams.</li>
+      <li>Show the eval score before publishing.</li>
+      <li>Publish, then open version history and re-generate once to show the versioning story.</li>
+      <li>If the network drops at any point, switch to deterministic replay without missing a beat.</li>
+    </ol>
+  </section>
+
+  <section class="spec-section" id="audit">
+    <div class="spec-head">
+      <span class="spec-code">Appendix A</span>
+      <h2>Quality Audit Checklist</h2>
+      <div class="dek">A category-by-category scan — performance through trust — for reviewing the build before a demo, not a strict scorecard every item must pass.</div>
+    </div>
+    <p>Not every line applies to every stage of a capstone build. Use this as a sweep across the whole picture close to defense day, not a pass/fail gate on day one.</p>
+
+    <div class="chk-cat"><span class="num">01</span><h4>Performance &amp; Speed</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Pages load quickly on an ordinary connection, not just on a fast office network.</span></li>
+      <li><input type="checkbox"><span>Images are compressed and served in a modern format.</span></li>
+      <li><input type="checkbox"><span>Unused CSS and JS are stripped before shipping.</span></li>
+      <li><input type="checkbox"><span>Below-the-fold media loads on demand.</span></li>
+      <li><input type="checkbox"><span>Static assets are cached and, where possible, served from a CDN.</span></li>
+      <li><input type="checkbox"><span>Text responses are compressed in transit.</span></li>
+      <li><input type="checkbox"><span>Animations run without visible stutter.</span></li>
+      <li><input type="checkbox"><span>Nothing render-blocking sits in the critical path.</span></li>
+      <li><input type="checkbox"><span>Common queries are indexed, not doing full-table scans.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">02</span><h4>Responsiveness &amp; Devices</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>The layout holds up from phone to large desktop.</span></li>
+      <li><input type="checkbox"><span>Grids reflow instead of breaking at odd widths.</span></li>
+      <li><input type="checkbox"><span>The viewport is set correctly — no forced desktop zoom on mobile.</span></li>
+      <li><input type="checkbox"><span>Nothing forces horizontal scrolling.</span></li>
+      <li><input type="checkbox"><span>Tap targets are sized for a finger, not just a cursor.</span></li>
+      <li><input type="checkbox"><span>Typography scales sensibly across breakpoints.</span></li>
+      <li><input type="checkbox"><span>Both portrait and landscape work.</span></li>
+      <li><input type="checkbox"><span>The product has been checked on a real device, not just a resized window.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">03</span><h4>Functionality &amp; Reliability</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>No dead links or surprise 404s.</span></li>
+      <li><input type="checkbox"><span>Forms validate on both client and server, with specific error messages.</span></li>
+      <li><input type="checkbox"><span>A real, designed error page exists for "not found" and "something broke."</span></li>
+      <li><input type="checkbox"><span>Behavior is consistent across major browsers.</span></li>
+      <li><input type="checkbox"><span>The console is clean on load — no stray errors or warnings.</span></li>
+      <li><input type="checkbox"><span>Uptime is actually monitored, not assumed.</span></li>
+      <li><input type="checkbox"><span>Backups exist and have actually been restored once, as a test.</span></li>
+      <li><input type="checkbox"><span>A slow or failed request degrades gracefully instead of breaking the page.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">04</span><h4>Navigation &amp; UX</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Primary navigation is obvious and consistent across every page.</span></li>
+      <li><input type="checkbox"><span>The structure is shallow — nothing important is buried many levels deep.</span></li>
+      <li><input type="checkbox"><span>Header and footer stay consistent wherever you land.</span></li>
+      <li><input type="checkbox"><span>The next action is never a guessing game.</span></li>
+      <li><input type="checkbox"><span>Support or contact is easy to find.</span></li>
+      <li><input type="checkbox"><span>Long pages offer a way back to the top.</span></li>
+      <li><input type="checkbox"><span>Anything important is reachable within a few clicks.</span></li>
+      <li><input type="checkbox"><span>Interactions behave the way a user would expect.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">05</span><h4>Design &amp; Visual Consistency</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Branding — logo, palette, type — is consistent throughout.</span></li>
+      <li><input type="checkbox"><span>Layout has real breathing room, not cramped spacing.</span></li>
+      <li><input type="checkbox"><span>Type is sized, spaced, and contrasted for actual reading.</span></li>
+      <li><input type="checkbox"><span>Visual hierarchy makes the important things look important.</span></li>
+      <li><input type="checkbox"><span>Shared components behave the same everywhere they appear.</span></li>
+      <li><input type="checkbox"><span>A real favicon exists, not the framework default.</span></li>
+      <li><input type="checkbox"><span>Empty and error states are designed on purpose, not left blank.</span></li>
+      <li><input type="checkbox"><span>No leftover placeholder text ships to the version you demo from.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">06</span><h4>Accessibility</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Every meaningful image has real alt text.</span></li>
+      <li><input type="checkbox"><span>Every interactive element is reachable by keyboard alone.</span></li>
+      <li><input type="checkbox"><span>Color contrast meets WCAG AA at minimum.</span></li>
+      <li><input type="checkbox"><span>Semantic HTML and ARIA let a screen reader parse the page.</span></li>
+      <li><input type="checkbox"><span>Text stays usable at 200% zoom.</span></li>
+      <li><input type="checkbox"><span>Focus is always visible.</span></li>
+      <li><input type="checkbox"><span>Status is never conveyed by color alone.</span></li>
+      <li><input type="checkbox"><span>Every form field has a real, associated label.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">07</span><h4>SEO &amp; Discoverability</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Every page has a unique title and description.</span></li>
+      <li><input type="checkbox"><span>Heading structure is logical — one H1, sensible headings underneath.</span></li>
+      <li><input type="checkbox"><span>URLs are clean and readable.</span></li>
+      <li><input type="checkbox"><span>A sitemap and robots.txt are present and correct.</span></li>
+      <li><input type="checkbox"><span>Related pages link to each other sensibly.</span></li>
+      <li><input type="checkbox"><span>Social share previews are set up.</span></li>
+      <li><input type="checkbox"><span>Nothing important is accidentally blocked from crawlers.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">08</span><h4>Security &amp; Privacy</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>HTTPS is enforced on every page, no exceptions.</span></li>
+      <li><input type="checkbox"><span>Public forms are protected against spam and bots.</span></li>
+      <li><input type="checkbox"><span>Dependencies are current — no known-vulnerable packages left in place.</span></li>
+      <li><input type="checkbox"><span>Input is sanitized and output is escaped against injection.</span></li>
+      <li><input type="checkbox"><span>Passwords are hashed properly and sessions handled safely.</span></li>
+      <li><input type="checkbox"><span>A privacy policy and cookie consent exist where required.</span></li>
+      <li><input type="checkbox"><span>Sensitive data is encrypted in transit and at rest.</span></li>
+      <li><input type="checkbox"><span>Basic abuse protection — rate limiting, a firewall — is in place.</span></li>
+      <li><input type="checkbox"><span>A recovery plan exists for when something does go wrong.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">09</span><h4>Content Quality</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Copy is actually proofread, not just written.</span></li>
+      <li><input type="checkbox"><span>Information stays current — nothing stale or wrong left up.</span></li>
+      <li><input type="checkbox"><span>Voice is consistent, as if one person wrote it.</span></li>
+      <li><input type="checkbox"><span>Content answers what the visitor actually came looking for.</span></li>
+      <li><input type="checkbox"><span>Structure is scannable — real headings, short paragraphs.</span></li>
+      <li><input type="checkbox"><span>Any testimonials or proof shown are genuine.</span></li>
+      <li><input type="checkbox"><span>A real "about" explains who's behind the product and why.</span></li>
+      <li><input type="checkbox"><span>Every image or video earns its place.</span></li>
+    </ul>
+
+    <div class="chk-cat"><span class="num">10</span><h4>Trust &amp; Operations</h4></div>
+    <ul class="chk-list">
+      <li><input type="checkbox"><span>Terms of service are clear and easy to find.</span></li>
+      <li><input type="checkbox"><span>A privacy policy explains what's collected and why.</span></li>
+      <li><input type="checkbox"><span>More than one way to reach support exists.</span></li>
+      <li><input type="checkbox"><span>Analytics are in place to see how the product is actually used.</span></li>
+      <li><input type="checkbox"><span>Key actions are deliberately tracked, not assumed.</span></li>
+      <li><input type="checkbox"><span>Reviews happen on a schedule, not only after something breaks.</span></li>
+      <li><input type="checkbox"><span>A real channel exists for someone to flag a problem.</span></li>
+    </ul>
+  </section>
+
+  <section class="spec-section" id="gloss">
+    <div class="spec-head">
+      <span class="spec-code">Appendix B</span>
+      <h2>Stack Summary &amp; Glossary</h2>
+      <div class="dek">One table, one glossary — for whoever opens this document without having read the rest first.</div>
+    </div>
+
+    <h3>Tech stack</h3>
+    <table>
+      <tr><th>Layer</th><th>Choice</th></tr>
+      <tr><td>Frontend</td><td>Next.js, React, TypeScript, Tailwind</td></tr>
+      <tr><td>Backend</td><td>FastAPI or NestJS</td></tr>
+      <tr><td>Database</td><td>PostgreSQL</td></tr>
+      <tr><td>Cache / queue</td><td>Redis</td></tr>
+      <tr><td>Vector store</td><td>Embeddings for the memory and knowledge layers</td></tr>
+      <tr><td>Realtime</td><td>SSE or WebSocket for pipeline progress</td></tr>
+      <tr><td>Testing</td><td>Jest, React Testing Library, Playwright</td></tr>
+    </table>
+
+    <h3>Glossary</h3>
+    <div class="acc-item">
+      <button class="acc-trigger">Normal / Enterprise tier <span class="chev">⌄</span></button>
+      <div class="acc-body"><div class="acc-body-in"><p>The two creation paths. Normal collapses the pipeline into a fast, single-capability build. Enterprise runs the full nine stages with visible layer depth.</p></div></div>
+    </div>
+    <div class="acc-item">
+      <button class="acc-trigger">Architect <span class="chev">⌄</span></button>
+      <div class="acc-body"><div class="acc-body-in"><p>The guided interview a creator sees during Create — pre-filled from inference, edited rather than authored from scratch.</p></div></div>
+    </div>
+    <div class="acc-item">
+      <button class="acc-trigger">Layer (knowledge / memory / tools / plans / eval) <span class="chev">⌄</span></button>
+      <div class="acc-body"><div class="acc-body-in"><p>The five dimensions an Enterprise agent is mapped across in Stage 3 of the pipeline — what it knows, what it remembers, what it can do, how it plans, and how it's judged.</p></div></div>
+    </div>
+    <div class="acc-item">
+      <button class="acc-trigger">Deterministic scoring <span class="chev">⌄</span></button>
+      <div class="acc-body"><div class="acc-body-in"><p>A fixed rubric and fixed test prompts, scored the same way every time — used in place of a trained ranking model, since there's no external dataset to train one on.</p></div></div>
+    </div>
+    <div class="acc-item">
+      <button class="acc-trigger">Job graph <span class="chev">⌄</span></button>
+      <div class="acc-body"><div class="acc-body-in"><p>The background task structure behind one generation — one task per pipeline stage, each emitting a progress event as it completes.</p></div></div>
+    </div>
+    <div class="acc-item">
+      <button class="acc-trigger">Tool registry <span class="chev">⌄</span></button>
+      <div class="acc-body"><div class="acc-body-in"><p>The allowlist of callable functions an agent's Tools layer may ever invoke — never an arbitrary or invented capability.</p></div></div>
+    </div>
+
+    <footer class="docfoot">OMNIA · Build Specification · Rev 1.0 · Compiled Jul 2026 · for capstone defense use</footer>
+  </section>
+
+</div>
+</main>
+
+<script>
+(function(){
+  // scroll progress
+  var bar = document.getElementById('progress');
+  function updateProgress(){
+    var h = document.documentElement;
+    var scrolled = h.scrollTop || document.body.scrollTop;
+    var height = (h.scrollHeight || document.body.scrollHeight) - h.clientHeight;
+    bar.style.width = (height > 0 ? (scrolled/height)*100 : 0) + '%';
+  }
+  document.addEventListener('scroll', updateProgress, {passive:true});
+  updateProgress();
+
+  // mobile sidebar toggle
+  var hbtn = document.getElementById('hbtn'), sidebar = document.getElementById('sidebar');
+  if(hbtn){ hbtn.addEventListener('click', function(){ sidebar.classList.toggle('open'); }); }
+  document.querySelectorAll('.navlink').forEach(function(l){
+    l.addEventListener('click', function(){ sidebar.classList.remove('open'); });
+  });
+
+  // scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('.navlink'));
+  var sections = links.map(function(l){ return document.querySelector(l.getAttribute('href')); }).filter(Boolean);
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      var id = '#' + e.target.id;
+      var link = links.find(function(l){ return l.getAttribute('href') === id; });
+      if(!link) return;
+      if(e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('active'); });
+        link.classList.add('active');
+      }
+    });
+  }, {rootMargin:'-15% 0px -75% 0px'});
+  sections.forEach(function(s){ io.observe(s); });
+
+  // accordions
+  document.addEventListener('click', function(ev){
+    var trig = ev.target.closest('.acc-trigger');
+    if(trig){ trig.parentElement.classList.toggle('open'); }
+  });
+
+  // tabs
+  document.addEventListener('click', function(ev){
+    var btn = ev.target.closest('.tab-btn');
+    if(!btn) return;
+    var group = btn.closest('.tabs').parentElement;
+    group.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    group.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+    btn.classList.add('active');
+    group.querySelector('#' + btn.dataset.tab).classList.add('active');
+  });
+})();
+</script>
+</body>
+</html>
