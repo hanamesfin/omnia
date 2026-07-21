@@ -14,8 +14,9 @@ import {
   Sparkles,
   Sun,
 } from "lucide-react";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, demoLogin } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
+import { markSessionActive, postAuthDestination } from "@/lib/auth-session";
 
 type Mode = "sign-in" | "sign-up";
 type Provider = "google" | "apple" | "github";
@@ -125,18 +126,36 @@ export function AuthPage({ mode }: { mode: Mode }) {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(
+        const serverMsg =
           data?.detail?.error?.message ||
-            data?.error?.message ||
-            (isSignUp ? "Could not create your account." : "Invalid email or password.")
+          data?.error?.message ||
+          (typeof data?.detail === "string" ? data.detail : null);
+        if (!isSignUp && (response.status === 401 || /password|credential|invalid/i.test(String(serverMsg || "")))) {
+          throw new Error("That password doesn't match.");
+        }
+        throw new Error(
+          serverMsg || (isSignUp ? "Could not create your account." : "That password doesn't match.")
         );
       }
       if (!data.access_token) throw new Error("The server did not return a session.");
-      localStorage.setItem("token", data.access_token);
-      localStorage.removeItem("logged_out");
-      router.replace("/yours");
+      markSessionActive(data.access_token as string);
+      router.replace(postAuthDestination(isSignUp ? "sign-up" : "sign-in"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Something went wrong.");
+      setError(reason instanceof Error ? reason.message : "Something went wrong. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const tryDemo = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const token = await demoLogin();
+      if (!token) throw new Error("Demo sign-in is unavailable right now.");
+      router.replace(postAuthDestination("sign-in"));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Demo sign-in failed.");
     } finally {
       setSubmitting(false);
     }
@@ -340,6 +359,17 @@ export function AuthPage({ mode }: { mode: Mode }) {
                 )}
               </button>
             </form>
+
+            {!isSignUp && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={tryDemo}
+                className="mt-3 inline-flex min-h-tap w-full items-center justify-center rounded-xl border border-border bg-surface/60 px-5 text-sm font-medium text-muted transition hover:text-foreground disabled:opacity-60"
+              >
+                Use demo account
+              </button>
+            )}
 
             <p className="mt-6 text-center text-sm text-muted">
               {isSignUp ? "Already have an account?" : "New to OMNIA?"}{" "}

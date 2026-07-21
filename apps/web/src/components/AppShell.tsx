@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useCallback,
   useEffect,
   useRef,
@@ -11,6 +12,7 @@ import {
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { PanelLeft } from "lucide-react";
+import { AuthGate } from "@/components/AuthGate";
 import { useI18n } from "@/components/I18nProvider";
 import { useAppearance } from "@/components/AppearanceProvider";
 import {
@@ -33,12 +35,38 @@ const SidebarToggle = dynamic(
   }
 );
 
+/** Auth forms + landing gate: no hamburger / sidebar chrome (OM–03). */
+function isGateChromePath(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname === "/sign-in" ||
+    pathname === "/sign-up" ||
+    pathname === "/auth/callback" ||
+    pathname === "/privacy" ||
+    pathname === "/terms"
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || "";
-  if (pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/auth/callback") {
-    return <main id="main" className="h-screen overflow-y-auto bg-field">{children}</main>;
-  }
-  return <AppShellChrome>{children}</AppShellChrome>;
+  const gated = (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-field" aria-busy="true" />
+      }
+    >
+      <AuthGate>
+        {isGateChromePath(pathname) ? (
+          <main id="main" className="h-screen overflow-y-auto bg-field">
+            {children}
+          </main>
+        ) : (
+          <AppShellChrome>{children}</AppShellChrome>
+        )}
+      </AuthGate>
+    </Suspense>
+  );
+  return gated;
 }
 
 function AppShellChrome({ children }: { children: ReactNode }) {

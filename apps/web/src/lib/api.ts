@@ -1,3 +1,9 @@
+import {
+  clearSession,
+  readSessionToken,
+  redirectToGate,
+} from "@/lib/auth-session";
+
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 /** Default ceiling for most API calls. */
@@ -54,25 +60,38 @@ async function timedFetch(input: string, init: RequestInit = {}, timeoutMs = API
   }
 }
 
-/** Ensure a demo JWT exists for local standalone API. */
+/**
+ * Return the current session JWT only — never silent demo-login (OM–03).
+ * Use `demoLogin()` explicitly from Sign in when needed for defense demos.
+ */
 export async function ensureAuth(): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  const existing = localStorage.getItem("token");
-  if (existing) return existing;
-  if (localStorage.getItem("logged_out") === "1") return null;
+  return readSessionToken();
+}
 
+/** Explicit demo session — only from a user gesture on Sign in. */
+export async function demoLogin(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
   try {
-    const res = await timedFetch(`${API_BASE}/auth/demo-login`, { method: "POST" }, 2000);
+    const res = await timedFetch(`${API_BASE}/auth/demo-login`, { method: "POST" }, 4000);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.access_token) {
-      localStorage.setItem("token", data.access_token);
+      const { markSessionActive } = await import("@/lib/auth-session");
+      markSessionActive(data.access_token as string);
       return data.access_token as string;
     }
   } catch {
     return null;
   }
   return null;
+}
+
+function handleUnauthorized() {
+  if (typeof window === "undefined") return;
+  const path = `${window.location.pathname}${window.location.search || ""}`;
+  clearSession("expired");
+  redirectToGate(path);
 }
 
 export type FetchApiOptions = RequestInit & { timeoutMs?: number };
@@ -103,29 +122,8 @@ export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) 
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      const retryToken = await ensureAuth();
-      if (retryToken) {
-        try {
-          const retry = await timedFetch(`${API_BASE}${endpoint}`, {
-            ...init,
-            headers: {
-              ...headers,
-              Authorization: `Bearer ${retryToken}`,
-            },
-          }, timeoutMs);
-          if (retry.ok) return retry.json();
-          const retryBody = (await retry.json().catch(() => ({}))) as ApiErrorBody;
-          throw new Error(errorMessage(retry.status, retryBody));
-        } catch (err) {
-          if (err instanceof Error && !err.message.startsWith("API timeout") && !err.message.startsWith("Generation timed out")) throw err;
-          throw new Error(
-            timeoutMs > API_TIMEOUT_MS
-              ? "Generation timed out — free models can take up to a minute. Try again."
-              : "API timeout — check the local server"
-          );
-        }
-      }
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
     }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     throw new Error(errorMessage(res.status, body));
@@ -167,22 +165,8 @@ export async function uploadFile(file: File): Promise<UploadedAttachment> {
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      const retryToken = await ensureAuth();
-      if (retryToken) {
-        const retry = await timedFetch(
-          `${API_BASE}/uploads`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${retryToken}` },
-            body: form,
-          },
-          8000
-        );
-        if (retry.ok) return retry.json();
-        const retryBody = (await retry.json().catch(() => ({}))) as ApiErrorBody;
-        throw new Error(errorMessage(retry.status, retryBody));
-      }
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
     }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     throw new Error(errorMessage(res.status, body));
@@ -218,22 +202,8 @@ export async function transcribeAudio(
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      const retryToken = await ensureAuth();
-      if (retryToken) {
-        const retry = await timedFetch(
-          `${API_BASE}/speech/transcribe`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${retryToken}` },
-            body: form,
-          },
-          30000
-        );
-        if (retry.ok) return retry.json();
-        const retryBody = (await retry.json().catch(() => ({}))) as ApiErrorBody;
-        throw new Error(errorMessage(retry.status, retryBody));
-      }
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
     }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     throw new Error(errorMessage(res.status, body));
