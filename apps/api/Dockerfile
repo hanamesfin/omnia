@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.docker.txt .
+RUN pip install --no-cache-dir -r requirements.docker.txt
 
 # Download the sentence-transformer model at build time
 # so the container is fully offline-capable (§11.2)
