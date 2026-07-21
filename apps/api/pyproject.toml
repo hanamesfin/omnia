@@ -1,3 +1,2 @@
 [tool.vercel]
-# Prefer standalone FastAPI (in-memory + LLM) over main.py (Postgres/Redis/Qdrant).
-entrypoint = "standalone:app"
+entrypoint = "app:app"

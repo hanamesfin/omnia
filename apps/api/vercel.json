@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pip install -r requirements.standalone.txt",
   "functions": {
-    "standalone.py": {
+    "app.py": {
       "maxDuration": 300,
       "memory": 1024
     }

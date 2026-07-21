@@ -12,6 +12,14 @@ Dockerfile
 Dockerfile.standalone
 alembic/
 seed/
+# Full Docker API entry — must not win autodetection over app.py / standalone.
+main.py
+database.py
+models.py
+cache.py
+vector_store.py
+worker.py
+routers/
 .omnia_store.json
 .omnia_store.json.tmp
 .omnia_agent_events.jsonl
