@@ -43,3 +43,5 @@ apps/api/tmp/
 *.log
 coverage/
 .nyc_output/
+.vercel
+.env*
