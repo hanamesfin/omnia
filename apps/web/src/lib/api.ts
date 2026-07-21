@@ -3,8 +3,8 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:800
 /** Default ceiling for most API calls. */
 export const API_TIMEOUT_MS = 12000;
 
-/** Agent generation can take several minutes across Product Factory phases. */
-export const GENERATE_TIMEOUT_MS = 240_000;
+/** Covers a free-tier cold start plus all Product Factory phases. */
+export const GENERATE_TIMEOUT_MS = 600_000;
 
 type ApiErrorBody = {
   detail?: { error?: { message?: string } } | string;

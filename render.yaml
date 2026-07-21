@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: omnia-api
+    runtime: python
+    plan: free
+    rootDir: apps/api
+    buildCommand: pip install --no-cache-dir -r requirements.standalone.txt
+    startCommand: uvicorn standalone:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
