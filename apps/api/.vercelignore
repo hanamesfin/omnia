@@ -20,6 +20,8 @@ cache.py
 vector_store.py
 worker.py
 routers/
+# Heavy ML stack — Vercel installs requirements.standalone.txt only.
+requirements.txt
 .omnia_store.json
 .omnia_store.json.tmp
 .omnia_agent_events.jsonl
