@@ -94,7 +94,7 @@ export default function ExploreProductPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await fetchApi("/marketplace/").catch(() => null);
+        const list = await fetchApi("/marketplace/", { silentAuth: true }).catch(() => null);
         if (!cancelled) {
           setCatalog(mergeCatalog(Array.isArray(list) ? list : null));
         }

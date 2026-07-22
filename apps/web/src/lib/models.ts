@@ -172,7 +172,7 @@ export async function loadModels(opts?: { force?: boolean }): Promise<AiModel[]>
   inflight = (async () => {
     try {
       const { fetchApi } = await import("@/lib/api");
-      const data = await fetchApi("/models/");
+      const data = await fetchApi("/models/", { silentAuth: true });
       cache = normalize(data);
       return cache;
     } catch {
@@ -197,6 +197,7 @@ export async function routeModels(opts: {
     const { fetchApi } = await import("@/lib/api");
     return await fetchApi("/models/route", {
       method: "POST",
+      silentAuth: true,
       body: JSON.stringify({
         prompt: opts.prompt,
         domain: opts.domain || "general",
@@ -231,7 +232,9 @@ export async function recommendModels(opts: {
   params.set("limit", String(opts.limit ?? 6));
   try {
     const { fetchApi } = await import("@/lib/api");
-    const data = await fetchApi(`/models/recommend?${params.toString()}`);
+    const data = await fetchApi(`/models/recommend?${params.toString()}`, {
+      silentAuth: true,
+    });
     if (data && Array.isArray(data.recommendations)) {
       return data as RecommendResponse;
     }

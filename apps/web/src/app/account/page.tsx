@@ -32,23 +32,37 @@ export default function AccountPage() {
       return;
     }
 
+    let cancelled = false;
     fetch(`${API_BASE}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Your session ended — log back in to continue.");
+        if (!response.ok) {
+          // Only a real auth rejection clears the session. Network/5xx must not.
+          if (response.status === 401) {
+            redirectToGate("/account");
+            return null;
+          }
+          throw new Error("Could not load your account. Try again in a moment.");
+        }
         return response.json() as Promise<Account>;
       })
       .then((data) => {
+        if (cancelled || !data) return;
         if (rejectBlockedSession(data)) {
-          throw new Error("Demo accounts cannot sign in — use a real account.");
+          redirectToGate("/account");
+          return;
         }
         setAccount(data);
       })
       .catch((reason) => {
+        if (cancelled) return;
         setError(reason instanceof Error ? reason.message : "Could not load your account.");
-        redirectToGate("/account");
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const logOut = () => {

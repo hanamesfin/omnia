@@ -1,8 +1,4 @@
-import {
-  clearSession,
-  readSessionToken,
-  redirectToGate,
-} from "@/lib/auth-session";
+import { readSessionToken, redirectToGate } from "@/lib/auth-session";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -16,8 +12,8 @@ export const API_TIMEOUT_MS = 12000;
 export const GENERATE_TIMEOUT_MS = 280_000;
 
 type ApiErrorBody = {
-  detail?: { error?: { message?: string } } | string;
-  error?: { message?: string };
+  detail?: { error?: { message?: string; code?: string } } | string;
+  error?: { message?: string; code?: string };
 };
 
 function errorMessage(status: number, body: ApiErrorBody): string {
@@ -27,6 +23,14 @@ function errorMessage(status: number, body: ApiErrorBody): string {
   if (typeof body.detail === "string") return body.detail;
   if (body.error?.message) return body.error.message;
   return `API Error: ${status}`;
+}
+
+function authErrorCode(body: ApiErrorBody): string | null {
+  if (typeof body.detail === "object" && body.detail?.error?.code) {
+    return body.detail.error.code;
+  }
+  if (body.error?.code) return body.error.code;
+  return null;
 }
 
 function withTimeout(ms: number, external?: AbortSignal | null): AbortSignal {
@@ -71,10 +75,18 @@ export async function ensureAuth(): Promise<string | null> {
 
 let signOutInFlight = false;
 
+/** Auth error codes that mean the local JWT must be discarded. */
+const SESSION_DEAD_CODES = new Set([
+  "auth.missing",
+  "auth.invalid_token",
+  "auth.demo_disallowed",
+]);
+
 /**
- * A 401 means the session is genuinely gone. Only tear it down when we actually
- * had a token (otherwise the AuthGate already handles unauthenticated routing),
- * and never fire the redirect twice for a burst of parallel calls.
+ * A definitive session-death 401 means the JWT is gone/invalid. Only tear it
+ * down when we actually had a token, and never fire twice for parallel calls.
+ * Catalog/enrichment calls must pass `silentAuth` so a flaky models/marketplace
+ * response cannot bounce a healthy signed-in user to /sign-in.
  */
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
@@ -82,15 +94,40 @@ function handleUnauthorized() {
   if (signOutInFlight) return;
   signOutInFlight = true;
   const path = `${window.location.pathname}${window.location.search || ""}`;
-  clearSession("expired");
+  // redirectToGate clears the session — do not clear twice beforehand
   redirectToGate(path);
+}
+
+function shouldForceReauth(
+  status: number,
+  body: ApiErrorBody,
+  silentAuth: boolean
+): boolean {
+  if (silentAuth) return false;
+  if (typeof window === "undefined") return false;
+  if (status === 403) {
+    // Role-denied while signed in stays an error; only force re-auth if we
+    // somehow have no usable token left.
+    return !readSessionToken();
+  }
+  if (status !== 401) return false;
+  if (!readSessionToken()) return false;
+  const code = authErrorCode(body);
+  // Credential-form failures must never clear a live session.
+  if (code === "auth.bad_credentials" || code === "auth.email_exists") {
+    return false;
+  }
+  if (code && !SESSION_DEAD_CODES.has(code) && !code.startsWith("auth.")) {
+    return false;
+  }
+  return true;
 }
 
 export type FetchApiOptions = RequestInit & {
   timeoutMs?: number;
   /**
    * Background/enrichment call — a 401 should surface as an error but must NOT
-   * sign the user out (e.g. similar agents, drift, version timeline).
+   * sign the user out (e.g. models catalog, marketplace shelf, similar agents).
    */
   silentAuth?: boolean;
 };
@@ -120,18 +157,14 @@ export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) 
   }
 
   if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     if (
       (res.status === 401 || res.status === 403) &&
-      typeof window !== "undefined"
+      shouldForceReauth(res.status, body, silentAuth)
     ) {
-      // 401 = session gone. 403 with no usable token also forces re-auth.
-      // Role-denied 403 while signed in still surfaces as an error without logout.
-      if (res.status === 401 || !readSessionToken()) {
-        if (!silentAuth) handleUnauthorized();
-        throw new Error("Your session ended — log back in to continue.");
-      }
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
     }
-    const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     throw new Error(errorMessage(res.status, body));
   }
 
@@ -170,15 +203,11 @@ export async function uploadFile(file: File): Promise<UploadedAttachment> {
   }
 
   if (!res.ok) {
-    if (res.status === 401 && typeof window !== "undefined") {
-      handleUnauthorized();
-      throw new Error("Your session ended — log back in to continue.");
-    }
-    if (res.status === 403 && typeof window !== "undefined" && !readSessionToken()) {
-      handleUnauthorized();
-      throw new Error("Your session ended — log back in to continue.");
-    }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
+    if (shouldForceReauth(res.status, body, false)) {
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
+    }
     throw new Error(errorMessage(res.status, body));
   }
 
@@ -211,15 +240,11 @@ export async function transcribeAudio(
   }
 
   if (!res.ok) {
-    if (res.status === 401 && typeof window !== "undefined") {
-      handleUnauthorized();
-      throw new Error("Your session ended — log back in to continue.");
-    }
-    if (res.status === 403 && typeof window !== "undefined" && !readSessionToken()) {
-      handleUnauthorized();
-      throw new Error("Your session ended — log back in to continue.");
-    }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
+    if (shouldForceReauth(res.status, body, false)) {
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
+    }
     throw new Error(errorMessage(res.status, body));
   }
 

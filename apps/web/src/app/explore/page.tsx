@@ -214,7 +214,7 @@ export default function ExplorePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetchApi("/marketplace/");
+        const res = await fetchApi("/marketplace/", { silentAuth: true });
         if (cancelled || !Array.isArray(res) || res.length === 0) return;
         startTransition(() => {
           const mapped = res.map((r: ExploreListing) => ({

@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AUTH_CHANNEL,
   hasSession,
   isPublicPath,
+  peekReturnTo,
   consumeReturnTo,
   LOGGED_OUT_KEY,
-  postAuthDestination,
   setReturnTo,
   signInHref,
   TOKEN_KEY,
@@ -25,9 +25,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [ready, setReady] = useState(false);
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    redirectingRef.current = false;
 
     const applyGate = () => {
       if (cancelled) return;
@@ -39,21 +41,34 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
       if (!authed && !publicRoute) {
         setReturnTo(fullPath);
-        router.replace(signInHref({ returnTo: fullPath }));
+        if (!redirectingRef.current) {
+          redirectingRef.current = true;
+          router.replace(signInHref({ returnTo: fullPath }));
+        }
         setReady(true);
         return;
       }
 
       if (authed && pathname === "/") {
-        router.replace(consumeReturnTo() || "/explore");
+        if (!redirectingRef.current) {
+          redirectingRef.current = true;
+          router.replace(consumeReturnTo() || "/explore");
+        }
         setReady(true);
         return;
       }
 
       if (authed && (pathname === "/sign-in" || pathname === "/sign-up")) {
-        const dest =
-          pathname === "/sign-up" ? "/explore" : postAuthDestination("sign-in");
-        router.replace(dest);
+        if (!redirectingRef.current) {
+          redirectingRef.current = true;
+          // Peek only — AuthPage.consumeReturnTo via postAuthDestination owns
+          // clearing returnTo after a successful form submit.
+          const dest =
+            pathname === "/sign-up"
+              ? "/explore"
+              : peekReturnTo() || "/yours";
+          router.replace(dest);
+        }
         setReady(true);
         return;
       }
@@ -71,18 +86,32 @@ export function AuthGate({ children }: { children: ReactNode }) {
     };
 
     const onPageShow = (event: PageTransitionEvent) => {
-      // bfcache restore after logout in another navigation — re-check session
+      // bfcache restore after logout — re-check only when needed
       if (event.persisted || !hasSession()) applyGate();
     };
 
+    // Visibility: only re-gate when the session is gone (another tab logged out).
+    // Do NOT re-run soft redirects on every tab focus — that consumed returnTo
+    // and bounced healthy signed-in users.
     const onVisibility = () => {
-      if (document.visibilityState === "visible") applyGate();
+      if (document.visibilityState === "visible" && !hasSession()) applyGate();
     };
 
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel(AUTH_CHANNEL);
-      channel.onmessage = () => applyGate();
+      channel.onmessage = (event: MessageEvent<{ type?: string }>) => {
+        // AuthPage owns post-login navigation after markSessionActive — don't
+        // race it with a second replace that can drop returnTo.
+        if (
+          event.data?.type === "session-active" &&
+          (pathname === "/sign-in" || pathname === "/sign-up")
+        ) {
+          setReady(true);
+          return;
+        }
+        applyGate();
+      };
     } catch {
       channel = null;
     }

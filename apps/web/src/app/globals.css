@@ -58,10 +58,12 @@ html {
   --chat-bubble-pad-x: calc(1rem * var(--omnia-density-scale));
   --chat-bubble-pad-y: calc(0.75rem * var(--omnia-density-scale));
   --chat-row-gap: calc(0.75rem * var(--omnia-density-scale));
-  /* Floating sidebar toggle: 1rem inset + 44px tap + gap (safe-area aware) */
+  /* Floating sidebar toggle: inset + tap target + gap (safe-area aware).
+     Only applied when the floating control is actually visible — never when
+     the desktop rail already owns the left edge. */
   --shell-chrome-pad: max(
-    4.5rem,
-    calc(env(safe-area-inset-left, 0px) + 3.75rem)
+    3.5rem,
+    calc(env(safe-area-inset-left, 0px) + 3rem)
   );
 }
 
@@ -804,7 +806,24 @@ html[data-font-family="dyslexic"] {
 
   .app-store-main {
     background: var(--background);
-    scroll-padding-left: var(--shell-chrome-pad);
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Mobile: pad for hamburger only. Drawer is a fixed overlay — main stays full width. */
+  @media (max-width: 1023px) {
+    .app-store-main {
+      padding-left: var(--shell-chrome-pad);
+      scroll-padding-left: var(--shell-chrome-pad);
+    }
+  }
+
+  /* Desktop: pad only when the rail is hidden and the restore control floats. */
+  @media (min-width: 1024px) {
+    .app-store-main[data-chrome-pad="1"] {
+      padding-left: var(--shell-chrome-pad);
+      scroll-padding-left: var(--shell-chrome-pad);
+    }
   }
 
   .app-store-page {

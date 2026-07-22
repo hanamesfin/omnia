@@ -36,7 +36,7 @@ import { AppearanceControls } from "@/components/AppearanceControls";
 import { useI18n } from "@/components/I18nProvider";
 import { THEMES, type ThemeId } from "@/lib/themes";
 import { API_BASE, fetchApi } from "@/lib/api";
-import { readSessionToken, rejectBlockedSession } from "@/lib/auth-session";
+import { hasSession, readSessionToken, rejectBlockedSession, redirectToGate } from "@/lib/auth-session";
 import {
   CHAT_HISTORY_EVENT,
   loadChatThreads,
@@ -150,13 +150,18 @@ export function AppSidebar({
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error("session expired");
+        if (!response.ok) {
+          // Do not clear a live session on transient /auth/me failures — only
+          // rejectBlockedSession / explicit logout / definitive API 401s do.
+          throw new Error("session unavailable");
+        }
         return response.json() as Promise<SidebarAccount>;
       })
       .then((data) => {
         if (cancelled) return;
         if (rejectBlockedSession(data)) {
           setAccount(null);
+          redirectToGate();
           return;
         }
         setAccount({
@@ -613,11 +618,10 @@ export function AppSidebar({
 
               <div className={`shrink-0 border-t border-border p-3 ${iconsOnly ? "flex justify-center" : ""}`}>
                 {(() => {
-                  const signedIn = Boolean(account?.display_name || account?.email);
-                  const label = signedIn
-                    ? account!.display_name || account!.email
-                    : "Sign in";
-                  const initials = signedIn
+                  const sessionLive = hasSession();
+                  const signedIn = Boolean(account?.display_name || account?.email) || sessionLive;
+                  const label = account?.display_name || account?.email || (sessionLive ? "Account" : "Sign in");
+                  const initials = account?.display_name || account?.email
                     ? (account!.display_name || account!.email)
                         .split(/[\s@.]+/)
                         .filter(Boolean)
@@ -625,9 +629,11 @@ export function AppSidebar({
                         .join("")
                         .slice(0, 2)
                         .toUpperCase()
-                    : "?";
+                    : sessionLive
+                      ? "…"
+                      : "?";
                   const href = signedIn ? "/account" : "/sign-in";
-                  const subtitle = signedIn ? account!.email : "Open account";
+                  const subtitle = account?.email || (sessionLive ? "Open account" : "Open account");
                   return (
                     <Link
                       href={href}

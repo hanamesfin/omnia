@@ -170,7 +170,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   };
 
   const showDesktopRail = !sidebarHidden && (!autoHide || peekOpen);
-  /** Floating hamburger (mobile) or PanelLeft restore (desktop when hidden). */
+  /** Floating PanelLeft restore — desktop only when the rail is fully hidden. */
   const showDesktopRestore = sidebarHidden;
   const transitionClass = reduceMotion
     ? ""
@@ -268,7 +268,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Floating chrome — pointer-events only on the controls so content stays clickable */}
-        <div className="pointer-events-none absolute left-0 top-0 z-50 flex items-start gap-2 p-4">
+        <div className="pointer-events-none absolute left-0 top-0 z-50 flex items-start gap-2 p-3 sm:p-4">
           <div className="pointer-events-auto lg:hidden">
             <SidebarToggle open={menuOpen} onToggle={toggle} />
           </div>
@@ -293,11 +293,11 @@ function AppShellChrome({ children }: { children: ReactNode }) {
           {t("shell.skip")}
         </a>
 
+        {/* data-chrome-pad: desktop restore only. Mobile pad is CSS @media — drawer overlays. */}
         <main
           id="main"
-          className={`app-store-main flex-1 overflow-y-auto max-lg:pl-[var(--shell-chrome-pad)] ${
-            showDesktopRestore ? "lg:pl-[var(--shell-chrome-pad)]" : "lg:pl-0"
-          }`}
+          data-chrome-pad={showDesktopRestore ? "1" : "0"}
+          className="app-store-main min-w-0 flex-1 overflow-y-auto"
         >
           {children}
         </main>
@@ -310,3 +310,5 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+

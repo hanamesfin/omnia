@@ -48,14 +48,18 @@ function clearUserCaches() {
   for (const key of doomed) localStorage.removeItem(key);
 }
 
-function broadcastSessionCleared(reason?: "expired" | "logout") {
+function broadcastAuth(message: { type: string; reason?: string }) {
   try {
     const channel = new BroadcastChannel(AUTH_CHANNEL);
-    channel.postMessage({ type: "session-cleared", reason: reason || "logout" });
+    channel.postMessage(message);
     channel.close();
   } catch {
     /* BroadcastChannel unsupported — storage events still cover other tabs */
   }
+}
+
+function broadcastSessionCleared(reason?: "expired" | "logout") {
+  broadcastAuth({ type: "session-cleared", reason: reason || "logout" });
 }
 
 /**
@@ -78,10 +82,17 @@ export function clearSession(reason?: "expired" | "logout") {
   broadcastSessionCleared(reason);
 }
 
+/**
+ * Persist a fresh JWT and clear the sticky logged-out latch.
+ * Order matters: drop `logged_out` before/with the token so `readSessionToken`
+ * cannot return null right after a successful sign-in.
+ */
 export function markSessionActive(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
+  if (typeof window === "undefined") return;
   localStorage.removeItem(LOGGED_OUT_KEY);
+  localStorage.setItem(TOKEN_KEY, token);
   sessionStorage.removeItem(SESSION_REASON_KEY);
+  broadcastAuth({ type: "session-active" });
 }
 
 /** Seed catalog identities must never appear as the signed-in profile. */
