@@ -4,13 +4,21 @@ import type { AgentLogo } from "@/lib/agent-logos";
 
 export type Suggestable = Pick<
   SeedListing,
-  "id" | "agent_id" | "name" | "specialty" | "domain" | "kind" | "developer" | "rating_count"
+  | "id"
+  | "agent_id"
+  | "name"
+  | "specialty"
+  | "domain"
+  | "kind"
+  | "developer"
+  | "rating_count"
 > & {
   rating_avg?: number;
   stars?: number;
   wilson_score?: number;
   rank_score?: number;
   aqs?: number;
+  get_count?: number;
   logo?: AgentLogo;
 };
 

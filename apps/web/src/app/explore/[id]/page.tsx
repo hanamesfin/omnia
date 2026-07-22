@@ -42,7 +42,8 @@ function domainLabel(domain: string) {
 }
 
 function starsOf(l: Suggestable) {
-  return l.rating_avg ?? l.stars ?? Math.min(5, (l.wilson_score || 0) * 5);
+  if ((l.rating_count || 0) <= 0) return 0;
+  return l.rating_avg ?? l.stars ?? 0;
 }
 
 function SuggestionCard({ listing }: { listing: Suggestable }) {

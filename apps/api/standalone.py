@@ -1506,17 +1506,19 @@ def _load_store() -> None:
 
 
 # Stable seed catalog — same IDs across restarts so Discover never floods with clones.
+# Social proof (wilson / rating_count / rating_avg) stays at 0 until real ratings exist.
+# Never invent flattering demo numbers for Discover.
 _SEED_CATALOG: list[tuple[str, str, str, str, str, float, int, float, str]] = [
-    ("agent-seed-guide", "Guide", "I teach you how to build agents on OMNIA — ask me anything about Create, Discover, or Yours.", "onboarding", "chat", 0.96, 9100, 4.9, "OMNIA Labs"),
-    ("agent-seed-bug-triage", "Bug Triage", "Paste a stack trace — get a prioritized triage note.", "coding", "tool", 0.91, 2140, 4.8, "OMNIA Labs"),
-    ("agent-seed-omnia-omni", "OMNIA Omni", "ChatGPT-class Omni — reason, write, code, analyze, take files.", "general", "chat", 0.94, 5200, 4.9, "OMNIA Labs"),
-    ("agent-seed-cover-letter", "Cover Letter Studio", "Role description in, tailored letter out.", "content", "transformer", 0.88, 902, 4.6, "Writeform"),
-    ("agent-seed-source-distiller", "Source Distiller", "Upload sources — get decisions and open questions.", "research", "analyzer", 0.86, 640, 4.5, "Northbrief"),
-    ("agent-seed-tone-safe", "Tone-Safe Support", "Product Q&A that never invents policy.", "customer_support", "chat", 0.89, 1802, 4.7, "Helpline Co"),
-    ("agent-seed-csv-insight", "CSV Insight", "Drop a spreadsheet — get patterns without overclaiming.", "data_analysis", "analyzer", 0.84, 411, 4.4, "Tabula"),
-    ("agent-seed-pr-reviewer", "PR Reviewer", "Diff in — risk, clarity, and missing tests out.", "coding", "tool", 0.90, 1280, 4.7, "OMNIA Labs"),
-    ("agent-seed-inbox-sorter", "Inbox Sorter", "Rules-based labeling for recurring message batches.", "customer_support", "automation", 0.82, 520, 4.3, "Queuekit"),
-    ("agent-seed-meeting-notes", "Meeting Notes Cleaner", "Raw transcript → action items and decisions.", "content", "transformer", 0.85, 760, 4.5, "Writeform"),
+    ("agent-seed-guide", "Guide", "I teach you how to build agents on OMNIA — ask me anything about Create, Discover, or Yours.", "onboarding", "chat", 0.0, 0, 0.0, "OMNIA Labs"),
+    ("agent-seed-bug-triage", "Bug Triage", "Paste a stack trace — get a prioritized triage note.", "coding", "tool", 0.0, 0, 0.0, "OMNIA Labs"),
+    ("agent-seed-omnia-omni", "OMNIA Omni", "ChatGPT-class Omni — reason, write, code, analyze, take files.", "general", "chat", 0.0, 0, 0.0, "OMNIA Labs"),
+    ("agent-seed-cover-letter", "Cover Letter Studio", "Role description in, tailored letter out.", "content", "transformer", 0.0, 0, 0.0, "Writeform"),
+    ("agent-seed-source-distiller", "Source Distiller", "Upload sources — get decisions and open questions.", "research", "analyzer", 0.0, 0, 0.0, "Northbrief"),
+    ("agent-seed-tone-safe", "Tone-Safe Support", "Product Q&A that never invents policy.", "customer_support", "chat", 0.0, 0, 0.0, "Helpline Co"),
+    ("agent-seed-csv-insight", "CSV Insight", "Drop a spreadsheet — get patterns without overclaiming.", "data_analysis", "analyzer", 0.0, 0, 0.0, "Tabula"),
+    ("agent-seed-pr-reviewer", "PR Reviewer", "Diff in — risk, clarity, and missing tests out.", "coding", "tool", 0.0, 0, 0.0, "OMNIA Labs"),
+    ("agent-seed-inbox-sorter", "Inbox Sorter", "Rules-based labeling for recurring message batches.", "customer_support", "automation", 0.0, 0, 0.0, "Queuekit"),
+    ("agent-seed-meeting-notes", "Meeting Notes Cleaner", "Raw transcript → action items and decisions.", "content", "transformer", 0.0, 0, 0.0, "Writeform"),
 ]
 
 
@@ -1911,10 +1913,10 @@ def _upsert_seed_agent(
                 "id": lid,
                 "agent_id": aid,
                 "visibility": "public",
-                "rating_count": count,
-                "rating_sum": float(count) * avg,
-                "recommend_count": int(count * 0.85),
-                "wilson_score": wilson,
+                "rating_count": 0,
+                "rating_sum": 0.0,
+                "recommend_count": 0,
+                "wilson_score": wilson_score(0, 0),
                 "published_at": _now(),
             }
         return
@@ -1989,8 +1991,8 @@ def _upsert_seed_agent(
         "current_version": 1,
         "share_context": False,
         "personalization": {"custom_instructions": "", "tone_override": ""},
-        "rating_sum": float(count) * avg,
-        "rating_count": count,
+        "rating_sum": 0.0,
+        "rating_count": 0,
         "user_ratings": {},
         "prompt_text": prompt,
         "linter_result": {"passed": True, "checks": [], "word_count": len(prompt.split()), "fk_grade": 10.0},
@@ -2019,12 +2021,80 @@ def _upsert_seed_agent(
             "id": lid,
             "agent_id": aid,
             "visibility": "public",
-            "rating_count": count,
-            "rating_sum": float(count) * avg,
-            "recommend_count": int(count * 0.85),
-            "wilson_score": wilson,
+            "rating_count": 0,
+            "rating_sum": 0.0,
+            "recommend_count": 0,
+            "wilson_score": wilson_score(0, 0),
             "published_at": _now(),
         }
+
+
+def _apply_rating_aggregates(agent: dict[str, Any], listing: dict[str, Any] | None) -> None:
+    """Recompute rating aggregates from real per-user ratings only."""
+    ratings = agent.get("user_ratings") or {}
+    values = [int(v) for v in ratings.values() if isinstance(v, (int, float))]
+    count = len(values)
+    total = float(sum(values))
+    agent["rating_count"] = count
+    agent["rating_sum"] = total
+    recommend = sum(1 for v in values if v >= 4)
+    if listing is not None:
+        listing["rating_count"] = count
+        listing["rating_sum"] = total
+        listing["recommend_count"] = recommend
+        listing["wilson_score"] = wilson_score(recommend, count)
+
+
+def _sanitize_seed_social_proof() -> int:
+    """
+    Strip invented seed catalog ratings so Discover never shows fake social proof.
+    Real per-user ratings are kept and re-aggregated.
+    """
+    seed_ids = {row[0] for row in _SEED_CATALOG}
+    fixed = 0
+    for aid in seed_ids:
+        agent = STORE.get("agents", {}).get(aid)
+        if not agent:
+            continue
+        listings = [
+            listing
+            for listing in STORE.get("listings", {}).values()
+            if listing.get("agent_id") == aid
+        ]
+        ratings = agent.get("user_ratings") or {}
+        has_real = bool(ratings)
+        before = (
+            int(agent.get("rating_count") or 0),
+            float(agent.get("rating_sum") or 0),
+        )
+        for listing in listings or [None]:
+            _apply_rating_aggregates(agent, listing)
+        after = (
+            int(agent.get("rating_count") or 0),
+            float(agent.get("rating_sum") or 0),
+        )
+        if before != after or (not has_real and before[0] > 0):
+            fixed += 1
+    return fixed
+
+
+def _library_get_counts() -> dict[str, int]:
+    """How many real users GET'd each agent into Yours (excludes seed catalog owner)."""
+    blocked = {"user-demo-admin", "user-demo-viewer"}
+    counts: dict[str, int] = {}
+    for uid, entries in STORE.get("library", {}).items():
+        if uid in blocked:
+            continue
+        seen: set[str] = set()
+        for entry in entries or []:
+            aid = str(entry.get("agent_id") or "")
+            if not aid or aid in seen:
+                continue
+            if entry.get("source") != "added_from_explore":
+                continue
+            seen.add(aid)
+            counts[aid] = counts.get(aid, 0) + 1
+    return counts
 
 
 def _ensure_seed_catalog() -> None:
@@ -2304,6 +2374,10 @@ async def lifespan(app: FastAPI):
     _load_store()
     _lock_seed_user_session()
     _ensure_seed_catalog()
+    scrubbed = _sanitize_seed_social_proof()
+    if scrubbed:
+        _save_store()
+        log.info("standalone.seed_social_proof_scrubbed", agents=scrubbed)
     log.info("standalone.startup", port=8000, demo_mode=settings.DEMO_MODE, llm=_llm_usable())
     yield
     log.info("standalone.shutdown")
@@ -5300,6 +5374,7 @@ async def evaluation(agent_id: str, user: SessionUser = Depends(require_perm("ev
 @app.get("/api/v1/marketplace/")
 async def marketplace_list(user: SessionUser = Depends(require_perm("marketplace.read"))):
     """Discover ordering = §2.3 rank_score (AQS Bayesian prior). Wilson kept as secondary signal."""
+    get_counts = _library_get_counts()
     out = []
     for listing in STORE["listings"].values():
         if listing["visibility"] != "public":
@@ -5313,9 +5388,10 @@ async def marketplace_list(user: SessionUser = Depends(require_perm("marketplace
         )
         aqs_val = float((agent.get("aqs") or {}).get("aqs") or listing.get("aqs_prior") or 0.72)
         rank = marketplace_rank_score(aqs_val, rating_avg, rating_count, k=10.0)
+        agent_id = listing["agent_id"]
         out.append({
             "id": listing["id"],
-            "agent_id": listing["agent_id"],
+            "agent_id": agent_id,
             "name": agent["name"],
             "specialty": agent.get("specialty") or agent["name"],
             "domain": agent.get("domain", "general"),
@@ -5324,6 +5400,7 @@ async def marketplace_list(user: SessionUser = Depends(require_perm("marketplace
             "rating_count": rating_count,
             "rating_avg": rating_avg,
             "stars": rating_avg,
+            "get_count": int(get_counts.get(agent_id) or 0),
             "recommend_count": listing["recommend_count"],
             "wilson_score": listing["wilson_score"],
             "aqs": aqs_val,

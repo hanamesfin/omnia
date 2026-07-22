@@ -30,6 +30,7 @@ type ExploreListing = SeedListing & {
   has_product_app?: boolean;
   rank_score?: number;
   aqs?: number;
+  get_count?: number;
 };
 
 const INTENTS = [
@@ -45,12 +46,18 @@ const INTENTS = [
 type IntentId = (typeof INTENTS)[number]["id"];
 
 function starsOf(listing: SeedListing) {
-  return listing.rating_avg ?? listing.stars ?? Math.min(5, (listing.wilson_score || 0) * 5);
+  // Only show a score when real ratings exist — never invent from wilson alone.
+  if ((listing.rating_count || 0) <= 0) return 0;
+  return listing.rating_avg ?? listing.stars ?? 0;
 }
 
 function formatCount(value: number) {
   if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(value || 0);
+}
+
+function getsOf(listing: ExploreListing) {
+  return Math.max(0, Number(listing.get_count) || 0);
 }
 
 function intentMatches(listing: ExploreListing, intent: IntentId) {
@@ -133,7 +140,11 @@ function AgentCard({
       <div className="mt-5 flex items-center justify-between gap-3 border-t border-border/70 pt-4">
         <div>
           <StarRating value={starsOf(listing)} count={listing.rating_count} size={12} />
-          <p className="mt-1 text-[10px] text-muted">{formatCount(listing.rating_count)} uses</p>
+          {getsOf(listing) > 0 ? (
+            <p className="mt-1 text-[10px] text-muted">{formatCount(getsOf(listing))} gets</p>
+          ) : (listing.rating_count || 0) > 0 ? (
+            <p className="mt-1 text-[10px] text-muted">{formatCount(listing.rating_count)} ratings</p>
+          ) : null}
         </div>
         <button
           type="button"
@@ -187,6 +198,11 @@ function TrendingRow({
       >
         {listing.name}
       </Link>
+      {getsOf(listing) > 0 && (
+        <span className="hidden shrink-0 text-[11px] tabular-nums text-muted sm:inline">
+          {formatCount(getsOf(listing))} gets
+        </span>
+      )}
       <button
         type="button"
         onClick={() => onUse(listing)}
@@ -282,13 +298,19 @@ export default function ExplorePage() {
       ),
     [filtered]
   );
-  const featured =
-    ranked.find(
-      (l) => l.agent_id === "agent-seed-guide" || l.name === "Guide"
-    ) || ranked[0];
-  const trending = ranked
-    .filter((l) => l.agent_id !== featured?.agent_id)
-    .slice(0, 4);
+  // Featured = true top by marketplace rank (AQS + real ratings), not a hardcoded demo pick.
+  const featured = ranked[0];
+  // Trending = agents people actually GET into Yours, then rank as tie-break.
+  const trending = useMemo(() => {
+    const rest = ranked.filter((l) => l.agent_id !== featured?.agent_id);
+    return [...rest]
+      .sort((a, b) => {
+        const gets = getsOf(b) - getsOf(a);
+        if (gets !== 0) return gets;
+        return (b.rank_score ?? 0) - (a.rank_score ?? 0);
+      })
+      .slice(0, 4);
+  }, [ranked, featured?.agent_id]);
   const showDiscoveryHero = !query.trim() && intent === "all";
   const browseListings = showDiscoveryHero
     ? ranked.filter((l) => l.agent_id !== featured?.agent_id)
@@ -435,7 +457,7 @@ export default function ExplorePage() {
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[10px] font-semibold text-white/80 backdrop-blur">
                       <ShieldCheck size={11} className="text-alive" />
-                      Editor&apos;s pick
+                      Top ranked
                     </span>
                   </div>
 
@@ -492,18 +514,24 @@ export default function ExplorePage() {
                       </p>
 
                       <div className="mt-6 flex flex-wrap gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
-                          <Star size={13} className="text-amber-300" fill="currentColor" />
-                          {starsOf(featured).toFixed(1)} rating
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
-                          <Users size={13} className="text-sky-300" />
-                          {formatCount(featured.rating_count)} uses
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
-                          <Zap size={13} className="text-violet-300" />
-                          Top ranked
-                        </span>
+                        {(featured.rating_count || 0) > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
+                            <Star size={13} className="text-amber-300" fill="currentColor" />
+                            {starsOf(featured).toFixed(1)} rating
+                          </span>
+                        )}
+                        {getsOf(featured) > 0 && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
+                            <Users size={13} className="text-sky-300" />
+                            {formatCount(getsOf(featured))} gets
+                          </span>
+                        )}
+                        {(featured.aqs || featured.rank_score) != null && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
+                            <Zap size={13} className="text-violet-300" />
+                            Rank score {(featured.rank_score ?? featured.aqs ?? 0).toFixed(2)}
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -539,7 +567,7 @@ export default function ExplorePage() {
                     Agents people are choosing today
                   </h2>
                   <p className="mt-1 text-sm text-muted">
-                    Ranked by usefulness, reliability, ratings, and real usage.
+                    Ranked by real Gets into Yours, then quality score.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
