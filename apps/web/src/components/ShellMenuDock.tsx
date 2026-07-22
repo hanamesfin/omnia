@@ -37,11 +37,15 @@ export function useShellMenuDock() {
 }
 
 /**
- * Portal target inside a page `max-w-*` content column (Discover, Yours, …).
- * AppShell docks the hamburger / PanelLeft here so it shares page padding
- * instead of floating at the viewport/shell edge.
+ * Portal target inside a page `max-w-*` content column (Discover, Yours, …)
+ * or Create studio header. AppShell docks the hamburger / PanelLeft here so
+ * it shares page padding instead of floating at the viewport/shell edge.
  */
-export function ShellMenuAnchor() {
+export function ShellMenuAnchor({
+  className = "pointer-events-none relative z-50 flex w-fit max-w-full flex-row items-start justify-start gap-2 [&:not(:empty)]:mb-4",
+}: {
+  className?: string;
+} = {}) {
   const { setDockEl } = useShellMenuDock();
   const ref = useCallback(
     (node: HTMLDivElement | null) => {
@@ -54,7 +58,7 @@ export function ShellMenuAnchor() {
     <div
       ref={ref}
       data-shell-menu-dock=""
-      className="pointer-events-none relative z-50 flex w-fit max-w-full flex-row items-start justify-start gap-2 [&:not(:empty)]:mb-4"
+      className={className}
     />
   );
 }

@@ -365,7 +365,7 @@ export function AppSidebar({
             {!persistent && (
               <button
                 type="button"
-                className="inline-flex min-h-tap min-w-tap items-center justify-center rounded-full text-muted hover:bg-navSelected hover:text-foreground lg:hidden"
+                className="inline-flex min-h-tap min-w-tap items-center justify-center rounded-full text-muted hover:bg-navSelected hover:text-foreground"
                 aria-label={t("shell.closeMenu")}
                 onClick={onClose}
               >
@@ -849,10 +849,13 @@ export function SidebarToggle({
   open,
   onToggle,
   controlsId,
+  /** When true, show at all breakpoints (Create studio overlay menu). */
+  alwaysVisible = false,
 }: {
   open: boolean;
   onToggle: () => void;
   controlsId?: string;
+  alwaysVisible?: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -861,7 +864,9 @@ export function SidebarToggle({
       aria-expanded={open}
       aria-controls={controlsId}
       onClick={onToggle}
-      className="app-store-menu-toggle inline-flex h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:hidden"
+      className={`app-store-menu-toggle inline-flex h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft ${
+        alwaysVisible ? "" : "lg:hidden"
+      }`}
       aria-label={open ? t("shell.closeMenu") : t("shell.openMenu")}
     >
       {open ? (
