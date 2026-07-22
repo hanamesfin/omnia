@@ -4,6 +4,7 @@ export const TOKEN_KEY = "token";
 export const LOGGED_OUT_KEY = "logged_out";
 export const RETURN_TO_KEY = "omnia-auth-return-to";
 export const SESSION_REASON_KEY = "omnia-session-reason";
+export const AUTH_CHANNEL = "omnia-auth";
 
 /** Routes reachable without a session. Everything else requires auth. */
 const PUBLIC_EXACT = new Set([
@@ -33,19 +34,77 @@ export function hasSession(): boolean {
   return Boolean(readSessionToken());
 }
 
+/** Drop local chat / avatar caches tied to the signed-in workspace. */
+function clearUserCaches() {
+  if (typeof window === "undefined") return;
+  const doomed: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith("omnia:chat-history:") || key === "omnia-agent-avatars") {
+      doomed.push(key);
+    }
+  }
+  for (const key of doomed) localStorage.removeItem(key);
+}
+
+function broadcastSessionCleared(reason?: "expired" | "logout") {
+  try {
+    const channel = new BroadcastChannel(AUTH_CHANNEL);
+    channel.postMessage({ type: "session-cleared", reason: reason || "logout" });
+    channel.close();
+  } catch {
+    /* BroadcastChannel unsupported — storage events still cover other tabs */
+  }
+}
+
+/**
+ * Tear down the client session.
+ * Always sets `logged_out` so Back / bfcache cannot revive a prior JWT.
+ */
 export function clearSession(reason?: "expired" | "logout") {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.setItem(LOGGED_OUT_KEY, "1");
+
   if (reason === "expired") {
     sessionStorage.setItem(SESSION_REASON_KEY, "expired");
+  } else if (reason === "logout") {
+    sessionStorage.removeItem(SESSION_REASON_KEY);
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    clearUserCaches();
   }
+
+  broadcastSessionCleared(reason);
 }
 
 export function markSessionActive(token: string) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.removeItem(LOGGED_OUT_KEY);
   sessionStorage.removeItem(SESSION_REASON_KEY);
+}
+
+/** Seed catalog identities must never appear as the signed-in profile. */
+const BLOCKED_SESSION_EMAILS = new Set(["admin@demo.com", "viewer@demo.com"]);
+const BLOCKED_SESSION_IDS = new Set(["user-demo-admin", "user-demo-viewer"]);
+
+export function isBlockedSessionIdentity(account: {
+  email?: string | null;
+  id?: string | null;
+} | null | undefined): boolean {
+  if (!account) return false;
+  const email = String(account.email || "").trim().toLowerCase();
+  const id = String(account.id || "").trim();
+  return BLOCKED_SESSION_EMAILS.has(email) || BLOCKED_SESSION_IDS.has(id);
+}
+
+export function rejectBlockedSession(account: {
+  email?: string | null;
+  id?: string | null;
+} | null | undefined): boolean {
+  if (!isBlockedSessionIdentity(account)) return false;
+  clearSession("expired");
+  return true;
 }
 
 export function setReturnTo(path: string) {
@@ -73,19 +132,57 @@ export function consumeSessionReason(): string | null {
   return value;
 }
 
+/** Build `/sign-in` with optional returnTo + session-expired reason. */
+export function signInHref(opts?: {
+  returnTo?: string | null;
+  reason?: "session" | null;
+}): string {
+  const params = new URLSearchParams();
+  if (opts?.reason === "session") params.set("reason", "session");
+  const returnTo = opts?.returnTo?.trim();
+  if (returnTo) {
+    const pathOnly = returnTo.split("?")[0] || returnTo;
+    if (pathOnly && pathOnly !== "/" && !isPublicPath(pathOnly)) {
+      params.set("returnTo", returnTo);
+    }
+  }
+  const qs = params.toString();
+  return qs ? `/sign-in?${qs}` : "/sign-in";
+}
+
 /** After sign-up → Explore. After sign-in → original destination or Yours. */
 export function postAuthDestination(mode: "sign-in" | "sign-up"): string {
   if (mode === "sign-up") return "/explore";
   return consumeReturnTo() || "/yours";
 }
 
+/**
+ * Session expired / forced sign-out — clear JWT and hard-navigate to sign-in.
+ * Uses location.replace so Back cannot revive protected pages from bfcache.
+ */
 export function redirectToGate(returnPath?: string) {
   if (typeof window === "undefined") return;
   if (returnPath) setReturnTo(returnPath);
   clearSession("expired");
-  const qs = "?reason=session";
-  if (window.location.pathname === "/" && window.location.search.includes("reason=session")) {
+  const dest = signInHref({
+    returnTo: peekReturnTo() || returnPath,
+    reason: "session",
+  });
+  if (
+    window.location.pathname === "/sign-in" &&
+    window.location.search.includes("reason=session")
+  ) {
     return;
   }
-  window.location.replace(`/${qs}`);
+  window.location.replace(dest);
+}
+
+/**
+ * Voluntary logout — full clear + hard redirect to `/sign-in`.
+ * Prefer this over soft router.replace so history/bfcache cannot restore protected UI.
+ */
+export function logoutAndRedirect() {
+  if (typeof window === "undefined") return;
+  clearSession("logout");
+  window.location.replace("/sign-in");
 }

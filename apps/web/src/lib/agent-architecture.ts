@@ -186,7 +186,7 @@ export function architectureForAgent(agent?: AgentLike | null): ArchBlock[] {
       title: "14. Authentication",
       purpose: "Accounts & tenants",
       status: "partial",
-      note: "JWT + org roles (demo login in local mode)",
+      note: "JWT + org roles (real accounts only)",
     },
     {
       id: "files",

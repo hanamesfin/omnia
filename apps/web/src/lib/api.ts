@@ -120,9 +120,16 @@ export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) 
   }
 
   if (!res.ok) {
-    if (res.status === 401 && typeof window !== "undefined") {
-      if (!silentAuth) handleUnauthorized();
-      throw new Error("Your session ended — log back in to continue.");
+    if (
+      (res.status === 401 || res.status === 403) &&
+      typeof window !== "undefined"
+    ) {
+      // 401 = session gone. 403 with no usable token also forces re-auth.
+      // Role-denied 403 while signed in still surfaces as an error without logout.
+      if (res.status === 401 || !readSessionToken()) {
+        if (!silentAuth) handleUnauthorized();
+        throw new Error("Your session ended — log back in to continue.");
+      }
     }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     throw new Error(errorMessage(res.status, body));
@@ -167,6 +174,10 @@ export async function uploadFile(file: File): Promise<UploadedAttachment> {
       handleUnauthorized();
       throw new Error("Your session ended — log back in to continue.");
     }
+    if (res.status === 403 && typeof window !== "undefined" && !readSessionToken()) {
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
+    }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     throw new Error(errorMessage(res.status, body));
   }
@@ -201,6 +212,10 @@ export async function transcribeAudio(
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== "undefined") {
+      handleUnauthorized();
+      throw new Error("Your session ended — log back in to continue.");
+    }
+    if (res.status === 403 && typeof window !== "undefined" && !readSessionToken()) {
       handleUnauthorized();
       throw new Error("Your session ended — log back in to continue.");
     }

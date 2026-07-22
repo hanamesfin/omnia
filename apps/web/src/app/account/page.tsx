@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, UserRound } from "lucide-react";
 import { API_BASE } from "@/lib/api";
-import { clearSession, redirectToGate } from "@/lib/auth-session";
+import {
+  logoutAndRedirect,
+  readSessionToken,
+  redirectToGate,
+  rejectBlockedSession,
+} from "@/lib/auth-session";
 
 type Account = {
   id: string;
@@ -21,9 +26,9 @@ export default function AccountPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token || localStorage.getItem("logged_out") === "1") {
-      router.replace("/");
+    const token = readSessionToken();
+    if (!token) {
+      router.replace("/sign-in?returnTo=%2Faccount");
       return;
     }
 
@@ -34,18 +39,20 @@ export default function AccountPage() {
         if (!response.ok) throw new Error("Your session ended — log back in to continue.");
         return response.json() as Promise<Account>;
       })
-      .then(setAccount)
+      .then((data) => {
+        if (rejectBlockedSession(data)) {
+          throw new Error("Demo accounts cannot sign in — use a real account.");
+        }
+        setAccount(data);
+      })
       .catch((reason) => {
-        clearSession("expired");
         setError(reason instanceof Error ? reason.message : "Could not load your account.");
         redirectToGate("/account");
       });
   }, [router]);
 
   const logOut = () => {
-    clearSession("logout");
-    router.replace("/");
-    router.refresh();
+    logoutAndRedirect();
   };
 
   if (!account) {

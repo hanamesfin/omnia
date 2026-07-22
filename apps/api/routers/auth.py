@@ -7,7 +7,13 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from auth import verify_password, hash_password, create_access_token, get_current_user
+from auth import (
+    verify_password,
+    hash_password,
+    create_access_token,
+    get_current_user,
+    raise_if_blocked_session,
+)
 from database import get_db
 from models import User, Organization
 
@@ -36,6 +42,7 @@ class UserResponse(BaseModel):
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    raise_if_blocked_session(email=str(req.email))
     # Check unique email
     existing = await db.execute(select(User).where(User.email == req.email))
     if existing.scalar_one_or_none():
@@ -59,12 +66,29 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    raise_if_blocked_session(email=form.username)
     result = await db.execute(select(User).where(User.email == form.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(401, {"error": {"code": "auth.bad_credentials", "message": "Invalid email or password", "retryable": False}})
-    token = create_access_token(user.id, user.org_id, user.role)
+    raise_if_blocked_session(email=user.email, user_id=user.id)
+    token = create_access_token(user.id, user.org_id, user.role, email=user.email, display_name=user.display_name)
     return TokenResponse(access_token=token)
+
+
+@router.post("/demo-login")
+async def demo_login_removed():
+    """Removed: seed/demo identities must never become live sessions."""
+    raise HTTPException(
+        410,
+        {
+            "error": {
+                "code": "auth.demo_disallowed",
+                "message": "Demo sign-in is disabled — create or use a real account",
+                "retryable": False,
+            }
+        },
+    )
 
 
 @router.get("/me", response_model=UserResponse)

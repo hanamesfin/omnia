@@ -22,7 +22,6 @@ from models import (
     MarketplaceListing,
     Evaluation,
 )
-from auth import hash_password
 from engines.knowledge import get_knowledge_store, reset_knowledge_store_for_tests
 from engines.intelligence.stats_cache import ModelStatisticsCache
 
@@ -87,14 +86,15 @@ async def reset_demo():
         admin_user = User(
             email="admin@demo.com",
             display_name="Demo Admin",
-            hashed_password=hash_password("demo123"),
+            # Catalog ownership only — session login blocked in auth layer
+            hashed_password="",
             role="admin",
             org_id=org.id,
         )
         viewer_user = User(
             email="viewer@demo.com",
             display_name="Demo Viewer",
-            hashed_password=hash_password("demo123"),
+            hashed_password="",
             role="viewer",
             org_id=org.id,
         )

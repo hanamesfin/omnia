@@ -36,6 +36,7 @@ import { AppearanceControls } from "@/components/AppearanceControls";
 import { useI18n } from "@/components/I18nProvider";
 import { THEMES, type ThemeId } from "@/lib/themes";
 import { API_BASE, fetchApi } from "@/lib/api";
+import { readSessionToken, rejectBlockedSession } from "@/lib/auth-session";
 import {
   CHAT_HISTORY_EVENT,
   loadChatThreads,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/chat-history";
 
 type SidebarAccount = {
+  id?: string;
   display_name: string;
   email: string;
 };
@@ -139,8 +141,8 @@ export function AppSidebar({
 
   useEffect(() => {
     let cancelled = false;
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token || localStorage.getItem("logged_out") === "1") {
+    const token = typeof window !== "undefined" ? readSessionToken() : null;
+    if (!token) {
       setAccount(null);
       return;
     }
@@ -152,12 +154,16 @@ export function AppSidebar({
         return response.json() as Promise<SidebarAccount>;
       })
       .then((data) => {
-        if (!cancelled) {
-          setAccount({
-            display_name: String(data.display_name || "").trim() || String(data.email || "").trim(),
-            email: String(data.email || "").trim(),
-          });
+        if (cancelled) return;
+        if (rejectBlockedSession(data)) {
+          setAccount(null);
+          return;
         }
+        setAccount({
+          id: String(data.id || "").trim() || undefined,
+          display_name: String(data.display_name || "").trim() || String(data.email || "").trim(),
+          email: String(data.email || "").trim(),
+        });
       })
       .catch(() => {
         if (!cancelled) setAccount(null);
@@ -281,7 +287,7 @@ export function AppSidebar({
           tabIndex={open ? 0 : -1}
           aria-label={t("shell.closeMenu")}
           aria-hidden={!open}
-          className={`fixed inset-0 z-[70] bg-black/35 backdrop-blur-[2px] transition-opacity duration-300 ease-soft lg:hidden ${
+          className={`fixed inset-0 z-[70] bg-black/35 backdrop-blur-[2px] transition-opacity duration-300 ease-soft ${
             open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           }`}
           onClick={onClose}
@@ -297,11 +303,11 @@ export function AppSidebar({
           persistent && appearanceWide
             ? "fixed inset-y-0 left-0 shadow-float"
             : persistent
-              ? "relative"
-              : `fixed inset-y-0 left-0 w-[17.5rem] p-3 transition-[transform,opacity] duration-300 ease-spring ${
+              ? "relative h-full max-h-dvh"
+              : `fixed inset-y-0 left-0 w-[min(17.5rem,100vw)] max-w-[100vw] p-3 transition-[transform,opacity] duration-300 ease-spring ${
                   open
                     ? "translate-x-0 opacity-100"
-                    : "-translate-x-full opacity-0 pointer-events-none lg:pointer-events-auto"
+                    : "-translate-x-full opacity-0 pointer-events-none"
                 }`
         }`}
         style={

@@ -16,7 +16,12 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
-import { markSessionActive, postAuthDestination } from "@/lib/auth-session";
+import {
+  consumeSessionReason,
+  markSessionActive,
+  postAuthDestination,
+  setReturnTo,
+} from "@/lib/auth-session";
 
 type Mode = "sign-in" | "sign-up";
 type Provider = "google" | "apple" | "github";
@@ -88,10 +93,22 @@ export function AuthPage({ mode }: { mode: Mode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get("returnTo");
+    if (returnTo) setReturnTo(returnTo);
+
+    const reason = params.get("reason") || consumeSessionReason();
+    if (reason === "session" || reason === "expired") {
+      setError("Your session ended — log back in to continue.");
+    }
+
     const oauthError = params.get("error");
     if (oauthError) {
       setError(oauthError === "missing_token" ? "Sign-in did not complete. Please try again." : oauthError);
+    }
+
+    if (oauthError || reason === "session" || reason === "expired") {
       params.delete("error");
+      params.delete("reason");
       const query = params.toString();
       window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
     }

@@ -5425,7 +5425,8 @@ class ModelRouteIn(BaseModel):
 
 
 @app.get("/api/v1/models/")
-async def list_models():
+async def list_models(user: SessionUser = Depends(require_user)):
+    _ = user
     return [
         {
             **model,
@@ -5441,7 +5442,11 @@ async def list_models():
 
 
 @app.post("/api/v1/models/analyze")
-async def analyze_model_task(body: ModelAnalyzeIn):
+async def analyze_model_task(
+    body: ModelAnalyzeIn,
+    user: SessionUser = Depends(require_user),
+):
+    _ = user
     from engines.model_selection.task_analyzer import analyze_prompt
 
     return analyze_prompt(
@@ -5454,7 +5459,11 @@ async def analyze_model_task(body: ModelAnalyzeIn):
 
 
 @app.post("/api/v1/models/route")
-async def route_model_task(body: ModelRouteIn):
+async def route_model_task(
+    body: ModelRouteIn,
+    user: SessionUser = Depends(require_user),
+):
+    _ = user
     router = ModelRouter(configured_fn=_provider_configured)
     decision = router.route(
         body.prompt,
@@ -5477,8 +5486,10 @@ async def recommend_model(
     require_tools: bool = False,
     require_vision: bool = False,
     limit: int = 8,
+    user: SessionUser = Depends(require_user),
 ):
     """Rank models for a task — used by Create / agent picker Suggested section."""
+    _ = user
     constraint_list = [c.strip() for c in constraints.split(",") if c.strip()]
     task = detect_task_type(domain, prompt=prompt, constraints=constraint_list, frontier=frontier)
     ranked = select_model(

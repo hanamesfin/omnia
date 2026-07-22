@@ -19,6 +19,7 @@ import {
   SIDEBAR_COLLAPSED_WIDTH,
   clampSidebarWidth,
 } from "@/lib/appearance-prefs";
+import { isPublicPath } from "@/lib/auth-session";
 
 const SIDEBAR_HIDDEN_KEY = "omnia-sidebar-hidden";
 
@@ -37,14 +38,7 @@ const SidebarToggle = dynamic(
 
 /** Auth forms + landing gate: no hamburger / sidebar chrome (OM–03). */
 function isGateChromePath(pathname: string) {
-  return (
-    pathname === "/" ||
-    pathname === "/sign-in" ||
-    pathname === "/sign-up" ||
-    pathname === "/auth/callback" ||
-    pathname === "/privacy" ||
-    pathname === "/terms"
-  );
+  return isPublicPath(pathname);
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -84,6 +78,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   const close = useCallback(() => setMenuOpen(false), []);
   const toggle = useCallback(() => setMenuOpen((v) => !v), []);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const railRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -130,35 +125,63 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     if (!autoHide) setPeekOpen(false);
   }, [autoHide]);
 
+  /** Close mobile drawer when crossing to desktop rail breakpoint. */
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => {
+      if (mq.matches) setMenuOpen(false);
+    };
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   const onResizeStart = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (collapsed || autoHide || sidebarHidden) return;
     e.preventDefault();
+    const target = e.currentTarget;
     const startX = e.clientX;
     const startW = railWidth;
     const prevUserSelect = document.body.style.userSelect;
     document.body.style.userSelect = "none";
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
 
     const onMove = (ev: PointerEvent) => {
       setSidebarWidth(clampSidebarWidth(startW + (ev.clientX - startX)));
     };
-    const onUp = () => {
+    const onUp = (ev: PointerEvent) => {
       document.body.style.userSelect = prevUserSelect;
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch {
+        /* ignore */
+      }
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   };
 
   const showDesktopRail = !sidebarHidden && (!autoHide || peekOpen);
+  /** Floating hamburger (mobile) or PanelLeft restore (desktop when hidden). */
+  const showDesktopRestore = sidebarHidden;
   const transitionClass = reduceMotion
     ? ""
     : "transition-[width,transform,opacity] duration-300 ease-spring";
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-field">
+    <div className="relative flex h-screen w-full overflow-hidden bg-field">
+      {/* Desktop rail — shrink-0 + overflow-hidden so peek/resize stay interactive */}
       <div
-        className={`relative hidden lg:flex ${transitionClass}`}
+        ref={railRef}
+        className={`relative hidden shrink-0 overflow-hidden lg:flex ${transitionClass}`}
         style={{
           width: sidebarHidden
             ? 0
@@ -183,19 +206,32 @@ function AppShellChrome({ children }: { children: ReactNode }) {
             setPeekOpen(true);
           }
         }}
+        onBlurCapture={(e) => {
+          if (!autoHide) return;
+          const next = e.relatedTarget as Node | null;
+          if (next && railRef.current?.contains(next)) return;
+          scheduleHide();
+        }}
       >
         {autoHide && !peekOpen && !sidebarHidden && (
           <button
             type="button"
             aria-label={t("shell.showSidebar")}
             className="absolute inset-y-0 left-0 z-[90] w-3 cursor-e-resize bg-transparent hover:bg-accent/20"
-            onClick={() => setPeekOpen(true)}
+            onClick={() => {
+              clearHide();
+              setPeekOpen(true);
+            }}
+            onPointerDown={() => {
+              clearHide();
+              setPeekOpen(true);
+            }}
           />
         )}
 
         {!sidebarHidden && (
           <div
-            className={`flex h-full ${transitionClass} ${
+            className={`flex h-full min-h-0 ${transitionClass} ${
               showDesktopRail ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
             style={{
@@ -230,20 +266,17 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         )}
       </div>
 
-      <div className="lg:hidden">
-        <AppSidebar open={menuOpen} onClose={close} collapsed={false} />
-      </div>
-
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="absolute left-4 top-4 z-50 flex items-center gap-2">
-          <div className="lg:hidden">
+        {/* Floating chrome — pointer-events only on the controls so content stays clickable */}
+        <div className="pointer-events-none absolute left-0 top-0 z-50 flex items-start gap-2 p-4">
+          <div className="pointer-events-auto lg:hidden">
             <SidebarToggle open={menuOpen} onToggle={toggle} />
           </div>
-          {sidebarHidden && (
+          {showDesktopRestore && (
             <button
               type="button"
               onClick={toggleDesktopSidebar}
-              className="app-store-menu-toggle hidden min-h-tap min-w-tap items-center justify-center rounded-xl text-foreground shadow-soft lg:inline-flex"
+              className="app-store-menu-toggle pointer-events-auto hidden min-h-tap min-w-tap items-center justify-center rounded-xl text-foreground shadow-soft lg:inline-flex"
               aria-expanded={false}
               aria-label={t("shell.showSidebar")}
               title={t("shell.showSidebar")}
@@ -255,14 +288,24 @@ function AppShellChrome({ children }: { children: ReactNode }) {
 
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-16 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-alive focus:px-3 focus:py-2 focus:text-on-alive focus:outline-none"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--shell-chrome-pad)] focus:top-4 focus:z-[60] focus:rounded-full focus:bg-alive focus:px-3 focus:py-2 focus:text-on-alive focus:outline-none"
         >
           {t("shell.skip")}
         </a>
 
-        <main id="main" className="app-store-main flex-1 overflow-y-auto">
+        <main
+          id="main"
+          className={`app-store-main flex-1 overflow-y-auto max-lg:pl-[var(--shell-chrome-pad)] ${
+            showDesktopRestore ? "lg:pl-[var(--shell-chrome-pad)]" : "lg:pl-0"
+          }`}
+        >
           {children}
         </main>
+      </div>
+
+      {/* Mobile drawer — outside the main column so fixed overlay isn't clipped */}
+      <div className="lg:hidden">
+        <AppSidebar open={menuOpen} onClose={close} collapsed={false} />
       </div>
     </div>
   );
