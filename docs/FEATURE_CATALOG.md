@@ -14,7 +14,7 @@ Last updated: 2026-07-20
 
 ### Onboarding & Account
 
-- Social login (Google / GitHub / Apple)
+- Social login (Google / GitHub)
 - Magic-link / passwordless auth
 - Guest mode
 - Biometric login
@@ -325,7 +325,7 @@ Target depth for Appearance, Language, Account, Privacy — not a flat checklist
 |---|---|---|
 | Profile display name | Editable | P1 |
 | Email (read-only + change flow) | OAuth vs password accounts differ | P1 |
-| Auth provider badge | email / google / github / apple | P0 |
+| Auth provider badge | email / google / github | P0 |
 | Role display | admin / editor / viewer | P0 |
 | Password change | Email accounts only | P1 |
 | MFA / WebAuthn | Optional step-up | P2 |
@@ -412,7 +412,7 @@ Evidence base: `apps/web` routes/components + `apps/api` (standalone + engines).
 
 | Item | Status | Notes |
 |---|---|---|
-| Social login (Google / GitHub / Apple) | DONE | `AuthPage`, OAuth start/callback; Apple needs Apple Developer setup |
+| Social login (Google / GitHub) | DONE | `AuthPage`, OAuth start/callback; Apple Sign In removed from product UI |
 | Email / password auth | DONE | register / login |
 | Demo auto-login | DONE | `ensureAuth` / demo-login |
 | Guest mode | MISSING | |

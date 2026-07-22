@@ -24,23 +24,15 @@ import {
 } from "@/lib/auth-session";
 
 type Mode = "sign-in" | "sign-up";
-type Provider = "google" | "apple" | "github";
+type Provider = "google" | "github";
 type ProviderStatus = Record<Provider, boolean>;
 
 const EMPTY_PROVIDERS: ProviderStatus = {
   google: false,
-  apple: false,
   github: false,
 };
 
 function providerIcon(provider: Provider) {
-  if (provider === "apple") {
-    return (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
-        <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35-.07 2.29.74 3.08.74.78 0 2.26-.91 3.81-.78 1.6.07 2.8.72 3.61 1.87-3.32 1.99-2.53 6.37.51 7.59-.61 1.6-1.42 3.18-2.51 4.35M12.03 7.25C11.88 4.9 13.78 2.97 15.97 2.78c.3 2.72-2.47 4.75-3.94 4.47" />
-      </svg>
-    );
-  }
   if (provider === "github") {
     return (
       <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
@@ -83,7 +75,6 @@ export function AuthPage({ mode }: { mode: Mode }) {
         if (!data) return;
         setProviders({
           google: Boolean(data.google),
-          apple: Boolean(data.apple),
           github: Boolean(data.github),
         });
       })
@@ -244,8 +235,8 @@ export function AuthPage({ mode }: { mode: Mode }) {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              {(["google", "apple", "github"] as Provider[]).map((provider) => (
+            <div className="grid grid-cols-2 gap-2">
+              {(["google", "github"] as Provider[]).map((provider) => (
                 <button
                   key={provider}
                   type="button"

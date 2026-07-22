@@ -2400,12 +2400,8 @@ async def auth_providers():
         "email": True,
         "google": bool((settings.GOOGLE_OAUTH_CLIENT_ID or "").strip() and (settings.GOOGLE_OAUTH_CLIENT_SECRET or "").strip()),
         "github": bool((settings.GITHUB_OAUTH_CLIENT_ID or "").strip() and (settings.GITHUB_OAUTH_CLIENT_SECRET or "").strip()),
-        "apple": bool(
-            (settings.APPLE_OAUTH_CLIENT_ID or "").strip()
-            and (settings.APPLE_OAUTH_TEAM_ID or "").strip()
-            and (settings.APPLE_OAUTH_KEY_ID or "").strip()
-            and (settings.APPLE_OAUTH_PRIVATE_KEY or "").strip()
-        ),
+        # Apple Sign In is intentionally disabled — not offered in the product UI.
+        "apple": False,
     }
 
 
@@ -2507,13 +2503,7 @@ def _oauth_provider_ready(provider: str) -> bool:
         return bool((settings.GOOGLE_OAUTH_CLIENT_ID or "").strip() and (settings.GOOGLE_OAUTH_CLIENT_SECRET or "").strip())
     if provider == "github":
         return bool((settings.GITHUB_OAUTH_CLIENT_ID or "").strip() and (settings.GITHUB_OAUTH_CLIENT_SECRET or "").strip())
-    if provider == "apple":
-        return bool(
-            (settings.APPLE_OAUTH_CLIENT_ID or "").strip()
-            and (settings.APPLE_OAUTH_TEAM_ID or "").strip()
-            and (settings.APPLE_OAUTH_KEY_ID or "").strip()
-            and (settings.APPLE_OAUTH_PRIVATE_KEY or "").strip()
-        )
+    # Apple Sign In is intentionally disabled.
     return False
 
 
@@ -2563,7 +2553,7 @@ async def oauth_start(provider: str):
     from urllib.parse import urlencode
 
     provider = provider.lower()
-    if provider not in {"google", "github", "apple"}:
+    if provider not in {"google", "github"}:
         raise HTTPException(404, {"error": {"code": "auth.unknown_provider", "message": "Unknown sign-in provider", "retryable": False}})
     if not _oauth_provider_ready(provider):
         return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in is not configured on the server."))
@@ -2583,25 +2573,13 @@ async def oauth_start(provider: str):
         }
         return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}")
 
-    if provider == "github":
-        params = {
-            "client_id": settings.GITHUB_OAUTH_CLIENT_ID.strip(),
-            "redirect_uri": redirect_uri,
-            "scope": "read:user user:email",
-            "state": state,
-        }
-        return RedirectResponse(f"https://github.com/login/oauth/authorize?{urlencode(params)}")
-
-    # apple
     params = {
-        "client_id": settings.APPLE_OAUTH_CLIENT_ID.strip(),
+        "client_id": settings.GITHUB_OAUTH_CLIENT_ID.strip(),
         "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": "name email",
+        "scope": "read:user user:email",
         "state": state,
-        "response_mode": "form_post",
     }
-    return RedirectResponse(f"https://appleid.apple.com/auth/authorize?{urlencode(params)}")
+    return RedirectResponse(f"https://github.com/login/oauth/authorize?{urlencode(params)}")
 
 
 async def _oauth_fetch_google(code: str, redirect_uri: str) -> tuple[str, str]:
@@ -2670,8 +2648,7 @@ async def oauth_callback(provider: str, code: str | None = None, state: str | No
     if error:
         return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in was cancelled."))
     if provider not in {"google", "github"}:
-        # Apple posts back via form_post and needs client-secret JWT signing — not yet enabled.
-        return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in is not available yet."))
+        return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in is not available."))
     if not code or not state or not _oauth_check_state(provider, state):
         return RedirectResponse(_oauth_web_return(error="Sign-in session expired. Please try again."))
     if not _oauth_provider_ready(provider):
