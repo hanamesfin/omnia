@@ -412,7 +412,7 @@ Evidence base: `apps/web` routes/components + `apps/api` (standalone + engines).
 
 | Item | Status | Notes |
 |---|---|---|
-| Social login (Google) | DONE | `AuthPage`, OAuth start/callback; GitHub and Apple Sign In removed from product UI |
+| Social login (Google + GitHub) | DONE | `AuthPage` grid of 2; OAuth start/callback when credentials set; Apple Sign In stays disabled |
 | Email / password auth | DONE | register / login |
 | Demo auto-login | DONE | `ensureAuth` / demo-login |
 | Guest mode | MISSING | |

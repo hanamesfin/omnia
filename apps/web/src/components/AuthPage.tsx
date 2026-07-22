@@ -18,14 +18,29 @@ import { API_BASE } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   consumeSessionReason,
+  hasSession,
   markSessionActive,
   postAuthDestination,
   setReturnTo,
 } from "@/lib/auth-session";
 
 type Mode = "sign-in" | "sign-up";
+type Provider = "google" | "github";
+type ProviderStatus = Record<Provider, boolean>;
 
-function GoogleIcon() {
+const EMPTY_PROVIDERS: ProviderStatus = {
+  google: false,
+  github: false,
+};
+
+function providerIcon(provider: Provider) {
+  if (provider === "github") {
+    return (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+        <path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.74-1.55-2.57-.29-5.27-1.29-5.27-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.19-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.71 5.39-5.29 5.68.42.36.79 1.06.79 2.14v3.26c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z" />
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
       <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
@@ -36,10 +51,15 @@ function GoogleIcon() {
   );
 }
 
+function providerName(provider: Provider) {
+  if (provider === "github") return "GitHub";
+  return provider[0].toUpperCase() + provider.slice(1);
+}
+
 export function AuthPage({ mode }: { mode: Mode }) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const [googleReady, setGoogleReady] = useState(false);
+  const [providers, setProviders] = useState<ProviderStatus>(EMPTY_PROVIDERS);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,9 +74,12 @@ export function AuthPage({ mode }: { mode: Mode }) {
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!data) return;
-        setGoogleReady(Boolean(data.google));
+        setProviders({
+          google: Boolean(data.google),
+          github: Boolean(data.github),
+        });
       })
-      .catch(() => setGoogleReady(false));
+      .catch(() => setProviders(EMPTY_PROVIDERS));
   }, []);
 
   useEffect(() => {
@@ -66,7 +89,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
     if (returnTo) setReturnTo(returnTo);
 
     const reason = params.get("reason") || consumeSessionReason();
-    if (reason === "session" || reason === "expired") {
+    // Soften: only show the expiry banner when the JWT is actually gone.
+    // Leftover reason keys / soft AuthGate redirects must not cry wolf.
+    if (!hasSession() && (reason === "session" || reason === "expired")) {
       setError("Your session ended — log back in to continue.");
     }
 
@@ -133,12 +158,14 @@ export function AuthPage({ mode }: { mode: Mode }) {
     }
   };
 
-  const continueWithGoogle = () => {
-    if (!googleReady) {
-      setError("Google sign-in needs OAuth credentials in the API configuration.");
+  const social = (provider: Provider) => {
+    if (!providers[provider]) {
+      setError(
+        `${providerName(provider)} sign-in needs OAuth credentials in the API configuration.`
+      );
       return;
     }
-    window.location.href = `${API_BASE}/auth/oauth/google/start`;
+    window.location.href = `${API_BASE}/auth/oauth/${provider}/start`;
   };
 
   return (
@@ -211,19 +238,28 @@ export function AuthPage({ mode }: { mode: Mode }) {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={continueWithGoogle}
-              className="relative inline-flex min-h-tap w-full items-center justify-center gap-2 rounded-xl border border-border bg-canvas text-sm font-semibold transition hover:border-alive/35 hover:bg-navSelected"
-              aria-label="Continue with Google"
-              title={googleReady ? "Continue with Google" : "Google OAuth setup required"}
-            >
-              <GoogleIcon />
-              <span>Continue with Google</span>
-              {!googleReady && (
-                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-warning" />
-              )}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              {(["google", "github"] as Provider[]).map((provider) => (
+                <button
+                  key={provider}
+                  type="button"
+                  onClick={() => social(provider)}
+                  className="relative inline-flex min-h-tap items-center justify-center gap-2 rounded-xl border border-border bg-canvas text-sm font-semibold transition hover:border-alive/35 hover:bg-navSelected"
+                  aria-label={`Continue with ${providerName(provider)}`}
+                  title={
+                    providers[provider]
+                      ? `Continue with ${providerName(provider)}`
+                      : `${providerName(provider)} OAuth setup required`
+                  }
+                >
+                  {providerIcon(provider)}
+                  <span className="hidden sm:inline">{providerName(provider)}</span>
+                  {!providers[provider] && (
+                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-warning" />
+                  )}
+                </button>
+              ))}
+            </div>
 
             <div className="my-6 flex items-center gap-3">
               <span className="h-px flex-1 bg-border" />

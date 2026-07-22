@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { LogOut, UserRound } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import {
+  hasSession,
+  isDefinitiveSessionDeath,
   logoutAndRedirect,
   readSessionToken,
   redirectToGate,
@@ -38,8 +40,17 @@ export default function AccountPage() {
     })
       .then(async (response) => {
         if (!response.ok) {
-          // Only a real auth rejection clears the session. Network/5xx must not.
-          if (response.status === 401) {
+          const body = (await response.json().catch(() => ({}))) as {
+            detail?: { error?: { code?: string } };
+            error?: { code?: string };
+          };
+          const code =
+            (typeof body.detail === "object" && body.detail?.error?.code) ||
+            body.error?.code ||
+            null;
+          // Only a definitive invalid/expired token clears the session.
+          // Network / 5xx / bare 401 keep the JWT so navigation stays signed-in.
+          if (response.status === 401 && isDefinitiveSessionDeath(code)) {
             redirectToGate("/account");
             return null;
           }
@@ -72,7 +83,9 @@ export default function AccountPage() {
   if (!account) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-4">
-        <p className="text-sm text-muted">{error || "Loading your account…"}</p>
+        <p className="text-sm text-muted">
+          {error || (hasSession() ? "Loading your account…" : "Redirecting to sign in…")}
+        </p>
       </div>
     );
   }

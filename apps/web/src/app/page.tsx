@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Check, Sparkles } from "lucide-react";
-import { consumeSessionReason } from "@/lib/auth-session";
+import { consumeSessionReason, hasSession } from "@/lib/auth-session";
 
 /**
  * OM–03 landing gate — brand, one line, Sign up / Log in.
@@ -16,7 +16,9 @@ function LandingInner() {
 
   useEffect(() => {
     const reason = searchParams.get("reason") || consumeSessionReason();
-    if (reason === "session" || reason === "expired") {
+    // Only surface the banner when the session is actually gone — leftover
+    // reason keys must not flash on every soft nav while still signed in.
+    if (!hasSession() && (reason === "session" || reason === "expired")) {
       setBanner("Your session ended — log back in to continue.");
     }
   }, [searchParams]);

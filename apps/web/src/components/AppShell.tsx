@@ -177,11 +177,11 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     : "transition-[width,transform,opacity] duration-300 ease-spring";
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-field">
-      {/* Desktop rail — shrink-0 + overflow-hidden so peek/resize stay interactive */}
+    <div className="relative flex h-dvh w-full overflow-hidden bg-field">
+      {/* Desktop rail — full viewport height; shrink-0 so peek/resize stay interactive */}
       <div
         ref={railRef}
-        className={`relative hidden shrink-0 overflow-hidden lg:flex ${transitionClass}`}
+        className={`relative hidden h-full min-h-0 shrink-0 self-stretch overflow-hidden lg:flex ${transitionClass}`}
         style={{
           width: sidebarHidden
             ? 0
@@ -266,12 +266,16 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         )}
       </div>
 
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Floating chrome — pointer-events only on the controls so content stays clickable */}
-        <div className="pointer-events-none absolute left-0 top-0 z-50 flex items-start gap-2 p-3 sm:p-4">
-          <div className="pointer-events-auto lg:hidden">
-            <SidebarToggle open={menuOpen} onToggle={toggle} />
-          </div>
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Floating chrome — closed-only on mobile (open drawer owns close in its header). */}
+        <div
+          className="pointer-events-none absolute left-0 top-0 z-50 flex items-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
+        >
+          {!menuOpen && (
+            <div className="pointer-events-auto lg:hidden">
+              <SidebarToggle open={menuOpen} onToggle={toggle} />
+            </div>
+          )}
           {showDesktopRestore && (
             <button
               type="button"
@@ -297,13 +301,13 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         <main
           id="main"
           data-chrome-pad={showDesktopRestore ? "1" : "0"}
-          className="app-store-main min-w-0 flex-1 overflow-y-auto"
+          className="app-store-main min-h-0 min-w-0 flex-1 overflow-y-auto"
         >
           {children}
         </main>
       </div>
 
-      {/* Mobile drawer — outside the main column so fixed overlay isn't clipped */}
+      {/* Mobile drawer — portal-sibling of main so fixed overlay isn't clipped */}
       <div className="lg:hidden">
         <AppSidebar open={menuOpen} onClose={close} collapsed={false} />
       </div>

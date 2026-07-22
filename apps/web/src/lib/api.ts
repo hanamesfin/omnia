@@ -1,4 +1,8 @@
-import { readSessionToken, redirectToGate } from "@/lib/auth-session";
+import {
+  isDefinitiveSessionDeath,
+  readSessionToken,
+  redirectToGate,
+} from "@/lib/auth-session";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -75,52 +79,38 @@ export async function ensureAuth(): Promise<string | null> {
 
 let signOutInFlight = false;
 
-/** Auth error codes that mean the local JWT must be discarded. */
-const SESSION_DEAD_CODES = new Set([
-  "auth.missing",
-  "auth.invalid_token",
-  "auth.demo_disallowed",
-]);
-
 /**
- * A definitive session-death 401 means the JWT is gone/invalid. Only tear it
- * down when we actually had a token, and never fire twice for parallel calls.
- * Catalog/enrichment calls must pass `silentAuth` so a flaky models/marketplace
- * response cannot bounce a healthy signed-in user to /sign-in.
+ * Tear down the client session only for a definitive auth death:
+ * - request was not silentAuth
+ * - Authorization Bearer was actually sent
+ * - HTTP 401 (never 403 / network / 5xx)
+ * - response body code is invalid/expired token or blocked demo identity
+ *
+ * Bare 401s, HTML gateway pages, missing codes, auth.missing (header stripped),
+ * and permission 403s must NOT wipe a live session.
  */
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
-  if (!readSessionToken()) return; // nothing to sign out of — let the gate decide
+  if (!readSessionToken()) return;
   if (signOutInFlight) return;
   signOutInFlight = true;
   const path = `${window.location.pathname}${window.location.search || ""}`;
-  // redirectToGate clears the session — do not clear twice beforehand
   redirectToGate(path);
 }
 
-function shouldForceReauth(
-  status: number,
-  body: ApiErrorBody,
-  silentAuth: boolean
-): boolean {
+function shouldForceReauth(opts: {
+  status: number;
+  body: ApiErrorBody;
+  silentAuth: boolean;
+  sentAuthorization: boolean;
+}): boolean {
+  const { status, body, silentAuth, sentAuthorization } = opts;
   if (silentAuth) return false;
   if (typeof window === "undefined") return false;
-  if (status === 403) {
-    // Role-denied while signed in stays an error; only force re-auth if we
-    // somehow have no usable token left.
-    return !readSessionToken();
-  }
+  if (!sentAuthorization) return false;
   if (status !== 401) return false;
   if (!readSessionToken()) return false;
-  const code = authErrorCode(body);
-  // Credential-form failures must never clear a live session.
-  if (code === "auth.bad_credentials" || code === "auth.email_exists") {
-    return false;
-  }
-  if (code && !SESSION_DEAD_CODES.has(code) && !code.startsWith("auth.")) {
-    return false;
-  }
-  return true;
+  return isDefinitiveSessionDeath(authErrorCode(body));
 }
 
 export type FetchApiOptions = RequestInit & {
@@ -135,6 +125,7 @@ export type FetchApiOptions = RequestInit & {
 export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) {
   const { timeoutMs = API_TIMEOUT_MS, silentAuth = false, ...init } = options;
   const token = await ensureAuth();
+  const sentAuthorization = Boolean(token);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -159,8 +150,12 @@ export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
     if (
-      (res.status === 401 || res.status === 403) &&
-      shouldForceReauth(res.status, body, silentAuth)
+      shouldForceReauth({
+        status: res.status,
+        body,
+        silentAuth,
+        sentAuthorization,
+      })
     ) {
       handleUnauthorized();
       throw new Error("Your session ended — log back in to continue.");
@@ -184,6 +179,7 @@ export type UploadedAttachment = {
 /** Multipart file upload — do not set Content-Type (browser sets boundary). */
 export async function uploadFile(file: File): Promise<UploadedAttachment> {
   const token = await ensureAuth();
+  const sentAuthorization = Boolean(token);
   const form = new FormData();
   form.append("file", file, file.name);
 
@@ -204,7 +200,14 @@ export async function uploadFile(file: File): Promise<UploadedAttachment> {
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
-    if (shouldForceReauth(res.status, body, false)) {
+    if (
+      shouldForceReauth({
+        status: res.status,
+        body,
+        silentAuth: false,
+        sentAuthorization,
+      })
+    ) {
       handleUnauthorized();
       throw new Error("Your session ended — log back in to continue.");
     }
@@ -220,6 +223,7 @@ export async function transcribeAudio(
   language?: string
 ): Promise<{ text: string; demo?: boolean }> {
   const token = await ensureAuth();
+  const sentAuthorization = Boolean(token);
   const form = new FormData();
   form.append("file", file, file.name);
   if (language) form.append("language", language);
@@ -241,7 +245,14 @@ export async function transcribeAudio(
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
-    if (shouldForceReauth(res.status, body, false)) {
+    if (
+      shouldForceReauth({
+        status: res.status,
+        body,
+        silentAuth: false,
+        sentAuthorization,
+      })
+    ) {
       handleUnauthorized();
       throw new Error("Your session ended — log back in to continue.");
     }

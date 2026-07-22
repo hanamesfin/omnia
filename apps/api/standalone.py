@@ -2399,8 +2399,7 @@ async def auth_providers():
     return {
         "email": True,
         "google": bool((settings.GOOGLE_OAUTH_CLIENT_ID or "").strip() and (settings.GOOGLE_OAUTH_CLIENT_SECRET or "").strip()),
-        # GitHub Sign In is intentionally disabled — not offered in the product UI.
-        "github": False,
+        "github": bool((settings.GITHUB_OAUTH_CLIENT_ID or "").strip() and (settings.GITHUB_OAUTH_CLIENT_SECRET or "").strip()),
         # Apple Sign In is intentionally disabled — not offered in the product UI.
         "apple": False,
     }
@@ -2502,7 +2501,9 @@ def _oauth_check_state(provider: str, state: str) -> bool:
 def _oauth_provider_ready(provider: str) -> bool:
     if provider == "google":
         return bool((settings.GOOGLE_OAUTH_CLIENT_ID or "").strip() and (settings.GOOGLE_OAUTH_CLIENT_SECRET or "").strip())
-    # GitHub and Apple Sign In are intentionally disabled.
+    if provider == "github":
+        return bool((settings.GITHUB_OAUTH_CLIENT_ID or "").strip() and (settings.GITHUB_OAUTH_CLIENT_SECRET or "").strip())
+    # Apple Sign In is intentionally disabled.
     return False
 
 
@@ -2552,7 +2553,7 @@ async def oauth_start(provider: str):
     from urllib.parse import urlencode
 
     provider = provider.lower()
-    if provider not in {"google"}:
+    if provider not in {"google", "github"}:
         raise HTTPException(404, {"error": {"code": "auth.unknown_provider", "message": "Unknown sign-in provider", "retryable": False}})
     if not _oauth_provider_ready(provider):
         return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in is not configured on the server."))
@@ -2560,16 +2561,25 @@ async def oauth_start(provider: str):
     state = _oauth_new_state(provider)
     redirect_uri = _oauth_redirect_uri(provider)
 
+    if provider == "google":
+        params = {
+            "client_id": settings.GOOGLE_OAUTH_CLIENT_ID.strip(),
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "access_type": "online",
+            "prompt": "select_account",
+        }
+        return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}")
+
     params = {
-        "client_id": settings.GOOGLE_OAUTH_CLIENT_ID.strip(),
+        "client_id": settings.GITHUB_OAUTH_CLIENT_ID.strip(),
         "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": "openid email profile",
+        "scope": "read:user user:email",
         "state": state,
-        "access_type": "online",
-        "prompt": "select_account",
     }
-    return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}")
+    return RedirectResponse(f"https://github.com/login/oauth/authorize?{urlencode(params)}")
 
 
 async def _oauth_fetch_google(code: str, redirect_uri: str) -> tuple[str, str]:
@@ -2599,12 +2609,45 @@ async def _oauth_fetch_google(code: str, redirect_uri: str) -> tuple[str, str]:
     return str(info.get("email") or ""), str(info.get("name") or "")
 
 
+async def _oauth_fetch_github(code: str, redirect_uri: str) -> tuple[str, str]:
+    import httpx
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        token_res = await client.post(
+            "https://github.com/login/oauth/access_token",
+            headers={"Accept": "application/json"},
+            data={
+                "code": code,
+                "client_id": settings.GITHUB_OAUTH_CLIENT_ID.strip(),
+                "client_secret": settings.GITHUB_OAUTH_CLIENT_SECRET.strip(),
+                "redirect_uri": redirect_uri,
+            },
+        )
+        token_res.raise_for_status()
+        access_token = str(token_res.json().get("access_token") or "")
+        if not access_token:
+            raise ValueError("GitHub did not return an access token.")
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"}
+        profile_res = await client.get("https://api.github.com/user", headers=headers)
+        profile_res.raise_for_status()
+        profile = profile_res.json()
+        email = str(profile.get("email") or "")
+        if not email:
+            emails_res = await client.get("https://api.github.com/user/emails", headers=headers)
+            if emails_res.status_code < 400:
+                emails = emails_res.json() or []
+                primary = next((e for e in emails if e.get("primary") and e.get("verified")), None)
+                verified = next((e for e in emails if e.get("verified")), None)
+                email = str((primary or verified or (emails[0] if emails else {})).get("email") or "")
+    return email, str(profile.get("name") or profile.get("login") or "")
+
+
 @app.get("/api/v1/auth/oauth/{provider}/callback")
 async def oauth_callback(provider: str, code: str | None = None, state: str | None = None, error: str | None = None):
     provider = provider.lower()
     if error:
         return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in was cancelled."))
-    if provider not in {"google"}:
+    if provider not in {"google", "github"}:
         return RedirectResponse(_oauth_web_return(error=f"{provider} sign-in is not available."))
     if not code or not state or not _oauth_check_state(provider, state):
         return RedirectResponse(_oauth_web_return(error="Sign-in session expired. Please try again."))
@@ -2613,7 +2656,10 @@ async def oauth_callback(provider: str, code: str | None = None, state: str | No
 
     redirect_uri = _oauth_redirect_uri(provider)
     try:
-        email, name = await _oauth_fetch_google(code, redirect_uri)
+        if provider == "google":
+            email, name = await _oauth_fetch_google(code, redirect_uri)
+        else:
+            email, name = await _oauth_fetch_github(code, redirect_uri)
         if not email:
             return RedirectResponse(_oauth_web_return(error="Could not read your email from the provider."))
         user = await _oauth_upsert_user(email, name, provider)

@@ -58,12 +58,12 @@ html {
   --chat-bubble-pad-x: calc(1rem * var(--omnia-density-scale));
   --chat-bubble-pad-y: calc(0.75rem * var(--omnia-density-scale));
   --chat-row-gap: calc(0.75rem * var(--omnia-density-scale));
-  /* Floating sidebar toggle: inset + tap target + gap (safe-area aware).
-     Only applied when the floating control is actually visible — never when
-     the desktop rail already owns the left edge. */
+  /* Floating sidebar toggle: inset + 44px tap + gap (safe-area aware).
+     Applied so main content clears the control — never when the desktop
+     rail already owns the left edge. */
   --shell-chrome-pad: max(
-    3.5rem,
-    calc(env(safe-area-inset-left, 0px) + 3rem)
+    4.5rem,
+    calc(env(safe-area-inset-left, 0px) + 4rem)
   );
 }
 
@@ -810,7 +810,8 @@ html[data-font-family="dyslexic"] {
     width: 100%;
   }
 
-  /* Mobile: pad for hamburger only. Drawer is a fixed overlay — main stays full width. */
+  /* Mobile: reserve left gutter for the floating hamburger. Drawer is a fixed
+     full-viewport overlay — main stays full width beneath it. */
   @media (max-width: 1023px) {
     .app-store-main {
       padding-left: var(--shell-chrome-pad);

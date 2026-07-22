@@ -26,12 +26,28 @@ export function isPublicPath(pathname: string): boolean {
 
 export function readSessionToken(): string | null {
   if (typeof window === "undefined") return null;
+  // Sticky logout latch wins — but only when explicitly set by clearSession.
   if (localStorage.getItem(LOGGED_OUT_KEY) === "1") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token && token.trim() ? token : null;
 }
 
 export function hasSession(): boolean {
   return Boolean(readSessionToken());
+}
+
+/**
+ * Codes that mean the JWT itself is dead. Bare 401s, auth.missing (header not
+ * received), 403 permission denials, and network/5xx must never clear storage.
+ */
+export const SESSION_DEAD_CODES = new Set([
+  "auth.invalid_token",
+  "auth.demo_disallowed",
+]);
+
+export function isDefinitiveSessionDeath(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return SESSION_DEAD_CODES.has(code);
 }
 
 /** Drop local chat / avatar caches tied to the signed-in workspace. */
@@ -86,12 +102,17 @@ export function clearSession(reason?: "expired" | "logout") {
  * Persist a fresh JWT and clear the sticky logged-out latch.
  * Order matters: drop `logged_out` before/with the token so `readSessionToken`
  * cannot return null right after a successful sign-in.
+ * Pathname changes alone must never clear this — only clearSession / logout.
  */
 export function markSessionActive(token: string) {
   if (typeof window === "undefined") return;
+  const value = String(token || "").trim();
+  if (!value) return;
   localStorage.removeItem(LOGGED_OUT_KEY);
-  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, value);
   sessionStorage.removeItem(SESSION_REASON_KEY);
+  // Verify write stuck (private mode / quota failures must not look "signed in").
+  if (localStorage.getItem(TOKEN_KEY) !== value) return;
   broadcastAuth({ type: "session-active" });
 }
 

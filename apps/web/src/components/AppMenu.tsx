@@ -186,7 +186,7 @@ export function AppSidebar({
       setIsChatProduct(false);
       return;
     }
-    fetchApi(`/agents/${encodeURIComponent(productAgentId)}`)
+    fetchApi(`/agents/${encodeURIComponent(productAgentId)}`, { silentAuth: true })
       .then((agent) => {
         if (cancelled) return;
         setAgentBrand(String(agent?.name || "AI Agent"));
@@ -304,12 +304,12 @@ export function AppSidebar({
         aria-label="OMNIA menu"
         aria-hidden={!visible}
         data-collapsed={iconsOnly ? "true" : "false"}
-        className={`app-store-sidebar z-[80] flex h-dvh shrink-0 flex-col ${
+        className={`app-store-sidebar z-[80] flex h-dvh min-h-0 shrink-0 flex-col ${
           persistent && appearanceWide
             ? "fixed inset-y-0 left-0 shadow-float"
             : persistent
               ? "relative h-full max-h-dvh"
-              : `fixed inset-y-0 left-0 w-[min(17.5rem,100vw)] max-w-[100vw] p-3 transition-[transform,opacity] duration-300 ease-spring ${
+              : `fixed inset-y-0 left-0 h-dvh w-[min(18rem,92vw)] max-w-[100vw] shadow-float transition-[transform,opacity] duration-300 ease-spring ${
                   open
                     ? "translate-x-0 opacity-100"
                     : "-translate-x-full opacity-0 pointer-events-none"
@@ -322,8 +322,10 @@ export function AppSidebar({
         }
       >
         <div
-          className={`flex h-full flex-col overflow-hidden ${
-            persistent ? "" : "glass-float max-w-[16.5rem]"
+          className={`flex h-full min-h-0 w-full flex-col overflow-hidden ${
+            persistent
+              ? ""
+              : "pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]"
           }`}
         >
           <div
