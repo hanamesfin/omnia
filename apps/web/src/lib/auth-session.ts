@@ -5,6 +5,8 @@ export const LOGGED_OUT_KEY = "logged_out";
 export const RETURN_TO_KEY = "omnia-auth-return-to";
 export const SESSION_REASON_KEY = "omnia-session-reason";
 export const AUTH_CHANNEL = "omnia-auth";
+/** Opt-in: `localStorage.setItem("omnia_auth_debug","1")` → console traces. */
+export const AUTH_DEBUG_KEY = "omnia_auth_debug";
 
 /** Routes reachable without a session. Everything else requires auth. */
 const PUBLIC_EXACT = new Set([
@@ -24,6 +26,16 @@ export function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+export function authDebug(...args: unknown[]) {
+  if (typeof window === "undefined") return;
+  try {
+    if (localStorage.getItem(AUTH_DEBUG_KEY) !== "1") return;
+  } catch {
+    return;
+  }
+  console.info("[omnia-auth]", ...args);
+}
+
 export function readSessionToken(): string | null {
   if (typeof window === "undefined") return null;
   // Sticky logout latch wins — but only when explicitly set by clearSession.
@@ -36,9 +48,34 @@ export function hasSession(): boolean {
   return Boolean(readSessionToken());
 }
 
+type SessionClaims = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  exp?: number;
+};
+
+/** Best-effort JWT payload decode (no signature check — client gate only). */
+export function decodeSessionClaims(token?: string | null): SessionClaims | null {
+  const raw = (token ?? readSessionToken() ?? "").trim();
+  if (!raw) return null;
+  const parts = raw.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+    const json = atob(b64 + pad);
+    const payload = JSON.parse(json) as SessionClaims;
+    return payload && typeof payload === "object" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Codes that mean the JWT itself is dead. Bare 401s, auth.missing (header not
- * received), 403 permission denials, and network/5xx must never clear storage.
+ * received), auth.session_unavailable (hydration miss), 403s, and network/5xx
+ * must never clear storage.
  */
 export const SESSION_DEAD_CODES = new Set([
   "auth.invalid_token",
@@ -84,6 +121,7 @@ function broadcastSessionCleared(reason?: "expired" | "logout") {
  */
 export function clearSession(reason?: "expired" | "logout") {
   if (typeof window === "undefined") return;
+  authDebug("clearSession", reason);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.setItem(LOGGED_OUT_KEY, "1");
 
@@ -96,6 +134,28 @@ export function clearSession(reason?: "expired" | "logout") {
   }
 
   broadcastSessionCleared(reason);
+}
+
+/**
+ * Clear only when `failedToken` is still the live session token.
+ * Prevents an in-flight 401 from an *old* JWT wiping a freshly signed-in session.
+ */
+export function clearSessionIfCurrentToken(
+  failedToken: string | null | undefined,
+  reason: "expired" | "logout" = "expired"
+): boolean {
+  if (typeof window === "undefined") return false;
+  const current = readSessionToken();
+  const failed = String(failedToken || "").trim();
+  if (!failed || !current || failed !== current) {
+    authDebug("skip clear — token no longer current", {
+      hadCurrent: Boolean(current),
+      matched: failed === current,
+    });
+    return false;
+  }
+  clearSession(reason);
+  return true;
 }
 
 /**
@@ -112,7 +172,11 @@ export function markSessionActive(token: string) {
   localStorage.setItem(TOKEN_KEY, value);
   sessionStorage.removeItem(SESSION_REASON_KEY);
   // Verify write stuck (private mode / quota failures must not look "signed in").
-  if (localStorage.getItem(TOKEN_KEY) !== value) return;
+  if (localStorage.getItem(TOKEN_KEY) !== value) {
+    authDebug("markSessionActive write failed");
+    return;
+  }
+  authDebug("markSessionActive", { claims: decodeSessionClaims(value) });
   broadcastAuth({ type: "session-active" });
 }
 
@@ -130,11 +194,33 @@ export function isBlockedSessionIdentity(account: {
   return BLOCKED_SESSION_EMAILS.has(email) || BLOCKED_SESSION_IDS.has(id);
 }
 
+/** True only when the *JWT itself* is a blocked seed identity. */
+export function sessionTokenLooksBlocked(token?: string | null): boolean {
+  const claims = decodeSessionClaims(token);
+  if (!claims) return false;
+  return isBlockedSessionIdentity({
+    email: claims.email,
+    id: claims.sub,
+  });
+}
+
+/**
+ * Tear down the session when `/auth/me` (or similar) returns a seed/demo
+ * identity — but ONLY if our JWT also looks blocked.
+ *
+ * Live bug (pre-fix API): cold instances without Upstash hydration could
+ * return `admin@demo.com` for a *real* user's token. Clearing on that response
+ * forced sign-in on every navigation. Real JWTs must survive that lie.
+ */
 export function rejectBlockedSession(account: {
   email?: string | null;
   id?: string | null;
 } | null | undefined): boolean {
   if (!isBlockedSessionIdentity(account)) return false;
+  if (!sessionTokenLooksBlocked()) {
+    authDebug("ignore blocked /auth/me — JWT is not a seed identity", account);
+    return false;
+  }
   clearSession("expired");
   return true;
 }
@@ -191,11 +277,23 @@ export function postAuthDestination(mode: "sign-in" | "sign-up"): string {
 /**
  * Session expired / forced sign-out — clear JWT and hard-navigate to sign-in.
  * Uses location.replace so Back cannot revive protected pages from bfcache.
+ * Returns true when the session was cleared (and navigation will happen).
  */
-export function redirectToGate(returnPath?: string) {
-  if (typeof window === "undefined") return;
+export function redirectToGate(
+  returnPath?: string,
+  opts?: { failedToken?: string | null }
+): boolean {
+  if (typeof window === "undefined") return false;
   if (returnPath) setReturnTo(returnPath);
-  clearSession("expired");
+  // If a failedToken was provided, only clear when it is still current.
+  if (opts && "failedToken" in (opts || {})) {
+    if (!clearSessionIfCurrentToken(opts?.failedToken, "expired")) {
+      authDebug("redirectToGate aborted — session still live");
+      return false;
+    }
+  } else {
+    clearSession("expired");
+  }
   const dest = signInHref({
     returnTo: peekReturnTo() || returnPath,
     reason: "session",
@@ -204,9 +302,10 @@ export function redirectToGate(returnPath?: string) {
     window.location.pathname === "/sign-in" &&
     window.location.search.includes("reason=session")
   ) {
-    return;
+    return true;
   }
   window.location.replace(dest);
+  return true;
 }
 
 /**

@@ -1,10 +1,24 @@
 import {
+  authDebug,
   isDefinitiveSessionDeath,
   readSessionToken,
   redirectToGate,
 } from "@/lib/auth-session";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+/**
+ * Normalize NEXT_PUBLIC_API_URL so both
+ * `https://host` and `https://host/api/v1` work.
+ * Endpoints are always `/auth/...`, `/agents/`, etc.
+ */
+function resolveApiBase(raw: string | undefined): string {
+  const fallback = "http://localhost:8000/api/v1";
+  const value = (raw || fallback).trim().replace(/\/+$/, "");
+  if (!value) return fallback;
+  if (/\/api\/v1$/i.test(value)) return value;
+  return `${value}/api/v1`;
+}
+
+export const API_BASE = resolveApiBase(process.env.NEXT_PUBLIC_API_URL);
 
 /** Default ceiling for most API calls. */
 export const API_TIMEOUT_MS = 12000;
@@ -85,17 +99,19 @@ let signOutInFlight = false;
  * - Authorization Bearer was actually sent
  * - HTTP 401 (never 403 / network / 5xx)
  * - response body code is invalid/expired token or blocked demo identity
+ * - the failed token is still the current session token (no race with re-login)
  *
- * Bare 401s, HTML gateway pages, missing codes, auth.missing (header stripped),
+ * Bare 401s, HTML gateway pages, missing codes, auth.missing, auth.session_unavailable,
  * and permission 403s must NOT wipe a live session.
  */
-function handleUnauthorized() {
+function handleUnauthorized(failedToken: string | null) {
   if (typeof window === "undefined") return;
-  if (!readSessionToken()) return;
+  if (!failedToken) return;
   if (signOutInFlight) return;
-  signOutInFlight = true;
   const path = `${window.location.pathname}${window.location.search || ""}`;
-  redirectToGate(path);
+  authDebug("handleUnauthorized", { path });
+  const cleared = redirectToGate(path, { failedToken });
+  if (cleared) signOutInFlight = true;
 }
 
 function shouldForceReauth(opts: {
@@ -110,7 +126,12 @@ function shouldForceReauth(opts: {
   if (!sentAuthorization) return false;
   if (status !== 401) return false;
   if (!readSessionToken()) return false;
-  return isDefinitiveSessionDeath(authErrorCode(body));
+  const code = authErrorCode(body);
+  const dead = isDefinitiveSessionDeath(code);
+  if (!dead) {
+    authDebug("keep session on 401", { code, status });
+  }
+  return dead;
 }
 
 export type FetchApiOptions = RequestInit & {
@@ -157,7 +178,7 @@ export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) 
         sentAuthorization,
       })
     ) {
-      handleUnauthorized();
+      handleUnauthorized(token);
       throw new Error("Your session ended — log back in to continue.");
     }
     throw new Error(errorMessage(res.status, body));
@@ -208,7 +229,7 @@ export async function uploadFile(file: File): Promise<UploadedAttachment> {
         sentAuthorization,
       })
     ) {
-      handleUnauthorized();
+      handleUnauthorized(token);
       throw new Error("Your session ended — log back in to continue.");
     }
     throw new Error(errorMessage(res.status, body));
@@ -253,7 +274,7 @@ export async function transcribeAudio(
         sentAuthorization,
       })
     ) {
-      handleUnauthorized();
+      handleUnauthorized(token);
       throw new Error("Your session ended — log back in to continue.");
     }
     throw new Error(errorMessage(res.status, body));

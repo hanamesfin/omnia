@@ -6,6 +6,7 @@ import { LogOut, UserRound } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import {
   hasSession,
+  isBlockedSessionIdentity,
   isDefinitiveSessionDeath,
   logoutAndRedirect,
   readSessionToken,
@@ -49,9 +50,9 @@ export default function AccountPage() {
             body.error?.code ||
             null;
           // Only a definitive invalid/expired token clears the session.
-          // Network / 5xx / bare 401 keep the JWT so navigation stays signed-in.
+          // Network / 5xx / bare 401 / hydration misses keep the JWT.
           if (response.status === 401 && isDefinitiveSessionDeath(code)) {
-            redirectToGate("/account");
+            redirectToGate("/account", { failedToken: token });
             return null;
           }
           throw new Error("Could not load your account. Try again in a moment.");
@@ -60,9 +61,12 @@ export default function AccountPage() {
       })
       .then((data) => {
         if (cancelled || !data) return;
-        if (rejectBlockedSession(data)) {
-          redirectToGate("/account");
-          return;
+        if (isBlockedSessionIdentity(data)) {
+          if (rejectBlockedSession(data)) {
+            redirectToGate("/account", { failedToken: token });
+            return;
+          }
+          throw new Error("Could not load your account. Try again in a moment.");
         }
         setAccount(data);
       })

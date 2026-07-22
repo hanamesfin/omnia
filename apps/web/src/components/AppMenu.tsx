@@ -36,7 +36,7 @@ import { AppearanceControls } from "@/components/AppearanceControls";
 import { useI18n } from "@/components/I18nProvider";
 import { THEMES, type ThemeId } from "@/lib/themes";
 import { API_BASE, fetchApi } from "@/lib/api";
-import { hasSession, readSessionToken, rejectBlockedSession, redirectToGate } from "@/lib/auth-session";
+import { hasSession, readSessionToken, rejectBlockedSession, redirectToGate, isBlockedSessionIdentity } from "@/lib/auth-session";
 import {
   CHAT_HISTORY_EVENT,
   loadChatThreads,
@@ -159,9 +159,15 @@ export function AppSidebar({
       })
       .then((data) => {
         if (cancelled) return;
-        if (rejectBlockedSession(data)) {
+        if (isBlockedSessionIdentity(data)) {
+          if (rejectBlockedSession(data)) {
+            setAccount(null);
+            redirectToGate(undefined, { failedToken: token });
+            return;
+          }
+          // API returned a seed identity for a real JWT — keep the session,
+          // just don't paint the demo profile in the shell.
           setAccount(null);
-          redirectToGate();
           return;
         }
         setAccount({

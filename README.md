@@ -65,7 +65,7 @@ Live API: [omnia-api-ten.vercel.app](https://omnia-api-ten.vercel.app)
 
    Web: [http://localhost:3000](http://localhost:3000)
 
-   Ensure `NEXT_PUBLIC_API_URL=http://localhost:8000` in your env (see `.env.example`).
+   Ensure `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` in your env (see `.env.example`).
 
 **Full stack via Compose:** `docker compose up` also builds the Next.js `web` service on port 3000.
 

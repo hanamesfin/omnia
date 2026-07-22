@@ -2247,7 +2247,18 @@ async def _user_from_token(authorization: str | None) -> SessionUser:
         # Rebuild from self-contained JWT claims — NEVER from a demo account.
         email = payload.get("email")
         if not email:
-            raise HTTPException(401, {"error": {"code": "auth.invalid_token", "message": "Session is stale — sign in again", "retryable": False}})
+            # Hydration miss on an older JWT (no email claim) is recoverable —
+            # do NOT use auth.invalid_token or the SPA will wipe a live session.
+            raise HTTPException(
+                401,
+                {
+                    "error": {
+                        "code": "auth.session_unavailable",
+                        "message": "Session could not be restored — retry or sign in again",
+                        "retryable": True,
+                    }
+                },
+            )
         raise_if_blocked_session(email=str(email), user_id=str(uid))
         user = {
             "id": uid,
