@@ -962,22 +962,17 @@ html[data-reduce-motion="true"] *::after {
   width: 100%;
 }
 
-@media (max-width: 1023px) {
-  .app-store-main,
-  .app-store-main[data-chrome-pad="1"] {
-    padding-left: var(--shell-chrome-pad);
-    scroll-padding-left: var(--shell-chrome-pad);
-  }
+/*
+  Chrome pad clears a viewport-floating hamburger / PanelLeft.
+  When the symbol is docked inside page content (e.g. Explore max-w-7xl),
+  data-chrome-pad="0" — no left pad on any breakpoint (avoids double inset).
+*/
+.app-store-main[data-chrome-pad="1"] {
+  padding-left: var(--shell-chrome-pad);
+  scroll-padding-left: var(--shell-chrome-pad);
 }
 
-@media (min-width: 1024px) {
-  .app-store-main[data-chrome-pad="1"] {
-    padding-left: var(--shell-chrome-pad);
-    scroll-padding-left: var(--shell-chrome-pad);
-  }
-
-  .app-store-main[data-chrome-pad="0"] {
-    padding-left: 0;
-    scroll-padding-left: 0;
-  }
+.app-store-main[data-chrome-pad="0"] {
+  padding-left: 0;
+  scroll-padding-left: 0;
 }

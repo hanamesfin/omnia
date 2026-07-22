@@ -9,12 +9,17 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { useI18n } from "@/components/I18nProvider";
 import { useAppearance } from "@/components/AppearanceProvider";
+import {
+  ShellMenuDockProvider,
+  useShellMenuDock,
+} from "@/components/ShellMenuDock";
 import {
   SIDEBAR_COLLAPSED_WIDTH,
   clampSidebarWidth,
@@ -76,10 +81,19 @@ export function AppShell({ children }: { children: ReactNode }) {
  * Single overlay shell: one relative host, stacked layers.
  * - Main is always absolute inset-0 (full-bleed) — never a flex sibling that
  *   shrinks for a sidebar column.
- * - Menu symbol (hamburger / PanelLeft) floats over main top-left.
+ * - Menu symbol (hamburger / PanelLeft) floats over main top-left by default,
+ *   or portals into a page dock (Explore’s max-w-7xl column).
  * - Desktop rail + mobile drawer are absolute/fixed overlays on the same host.
  */
 function AppShellChrome({ children }: { children: ReactNode }) {
+  return (
+    <ShellMenuDockProvider>
+      <AppShellChromeInner>{children}</AppShellChromeInner>
+    </ShellMenuDockProvider>
+  );
+}
+
+function AppShellChromeInner({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const {
     sidebarLayout,
@@ -88,15 +102,17 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     setSidebarWidth,
     reduceMotion,
   } = useAppearance();
+  const { dockEl } = useShellMenuDock();
   const [menuOpen, setMenuOpen] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  /** Below `lg`: floating hamburger always shown — main needs chrome pad. */
+  /** Below `lg`: floating hamburger always shown — main needs chrome pad when undocked. */
   const [isNarrow, setIsNarrow] = useState(true);
   const close = useCallback(() => setMenuOpen(false), []);
   const toggle = useCallback(() => setMenuOpen((v) => !v), []);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const menuDocked = Boolean(dockEl);
 
   useEffect(() => {
     try {
@@ -190,8 +206,12 @@ function AppShellChrome({ children }: { children: ReactNode }) {
    * (fully hidden, or auto-hide parked off-screen). Never a full-height control.
    */
   const showDesktopRestore = sidebarHidden || (autoHide && !peekOpen);
-  /** Pad main when a floating toggle occupies the top-left (mobile hamburger or desktop restore). */
-  const needsChromePad = isNarrow || showDesktopRestore;
+  /**
+   * Pad main only when a viewport-floating toggle occupies the shell top-left.
+   * When Explore (or another page) docks the symbol into its content column,
+   * skip left chrome-pad so we don’t double-offset beside max-w-7xl padding.
+   */
+  const needsChromePad = !menuDocked && (isNarrow || showDesktopRestore);
   const showMenuSymbol = (isNarrow && !menuOpen) || showDesktopRestore;
   const transitionClass = reduceMotion
     ? ""
@@ -213,6 +233,34 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     }
   }, [autoHide, setHidden, sidebarHidden, sidebarPin]);
 
+  const menuSymbol = showMenuSymbol ? (
+    <div
+      className={
+        menuDocked
+          ? "pointer-events-none flex h-auto w-auto flex-row items-start justify-start gap-2"
+          : "pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto flex-row items-start justify-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
+      }
+    >
+      {isNarrow && !menuOpen && (
+        <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 grow-0 self-start lg:hidden">
+          <SidebarToggle open={menuOpen} onToggle={toggle} />
+        </div>
+      )}
+      {showDesktopRestore && (
+        <button
+          type="button"
+          onClick={revealDesktopSidebar}
+          className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
+          aria-expanded={false}
+          aria-label={t("shell.showSidebar")}
+          title={t("shell.showSidebar")}
+        >
+          <PanelLeft size={20} strokeWidth={1.5} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
+        </button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div
       className="app-shell relative isolate h-dvh w-full overflow-hidden bg-field"
@@ -233,30 +281,13 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      {/* Layer 1 — menu symbol floats over main (hamburger / PanelLeft) */}
-      {showMenuSymbol && (
-        <div
-          className="pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto flex-row items-start justify-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
-        >
-          {isNarrow && !menuOpen && (
-            <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 grow-0 self-start lg:hidden">
-              <SidebarToggle open={menuOpen} onToggle={toggle} />
-            </div>
-          )}
-          {showDesktopRestore && (
-            <button
-              type="button"
-              onClick={revealDesktopSidebar}
-              className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
-              aria-expanded={false}
-              aria-label={t("shell.showSidebar")}
-              title={t("shell.showSidebar")}
-            >
-              <PanelLeft size={20} strokeWidth={1.5} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
-            </button>
-          )}
-        </div>
-      )}
+      {/* Layer 1 — menu symbol: docked into page chrome, else floats over main */}
+      {menuSymbol &&
+        (menuDocked && dockEl
+          ? createPortal(menuSymbol, dockEl)
+          : !menuDocked
+            ? menuSymbol
+            : null)}
 
       {/* Invisible auto-hide edge hit-area only — never an icon / visible bar. */}
       {autoHide && !peekOpen && !sidebarHidden && (
