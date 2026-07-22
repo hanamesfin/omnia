@@ -949,8 +949,7 @@ html[data-reduce-motion="true"] *::after {
 /*
   Shell chrome pad — unlayered so it wins over @layer utilities.
   Mobile: always clear the floating hamburger (drawer overlays; main stays full-bleed beneath).
-  Desktop: only when data-chrome-pad="1" (sidebar hidden / auto-hide parked).
-  Overlay rail (open or closed) never reserves layout width — pad is for the floating toggle only.
+  Desktop: only when data-chrome-pad="1" (sidebar hidden / auto-hide parked). Expanded rail → pad 0.
 */
 .app-store-main {
   background: var(--background);
