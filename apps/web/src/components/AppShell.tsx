@@ -99,10 +99,6 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const toggleDesktopSidebar = useCallback(() => {
-    setHidden(!sidebarHidden);
-  }, [setHidden, sidebarHidden]);
-
   const collapsed = sidebarLayout === "collapsed";
   const autoHide = sidebarPin === "auto-hide" && !sidebarHidden;
   const railWidth = collapsed
@@ -172,26 +168,52 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   };
 
   const showDesktopRail = !sidebarHidden && (!autoHide || peekOpen);
-  /** Floating PanelLeft restore — desktop only when the rail is fully hidden. */
-  const showDesktopRestore = sidebarHidden;
+  /**
+   * Compact floating PanelLeft — desktop when the rail content is not visible
+   * (fully hidden, or auto-hide parked off-screen). Never a full-height control.
+   */
+  const showDesktopRestore = sidebarHidden || (autoHide && !peekOpen);
   const transitionClass = reduceMotion
     ? ""
     : "transition-[width,transform,opacity] duration-300 ease-spring";
 
+  const revealDesktopSidebar = useCallback(() => {
+    if (sidebarHidden) {
+      setHidden(false);
+      // If pin is auto-hide, also peek so the rail actually appears.
+      if (sidebarPin === "auto-hide") {
+        clearHide();
+        setPeekOpen(true);
+      }
+      return;
+    }
+    if (autoHide) {
+      clearHide();
+      setPeekOpen(true);
+    }
+  }, [autoHide, setHidden, sidebarHidden, sidebarPin]);
+
   return (
     <div className="relative flex h-dvh w-full overflow-hidden bg-field">
+      {/* Invisible auto-hide edge hit-area only — never an icon / visible bar. */}
+      {autoHide && !peekOpen && !sidebarHidden && (
+        <div
+          role="presentation"
+          aria-hidden
+          className="app-shell-peek-edge absolute inset-y-0 left-0 z-[90] hidden lg:block"
+          onMouseEnter={() => {
+            clearHide();
+            setPeekOpen(true);
+          }}
+        />
+      )}
+
       {/* Desktop rail — full viewport height; shrink-0 so peek/resize stay interactive */}
       <div
         ref={railRef}
         className={`relative hidden h-full min-h-0 shrink-0 self-stretch overflow-hidden lg:flex ${transitionClass}`}
         style={{
-          width: sidebarHidden
-            ? 0
-            : autoHide
-              ? peekOpen
-                ? railWidth
-                : 12
-              : railWidth,
+          width: showDesktopRail ? railWidth : 0,
         }}
         onMouseEnter={() => {
           if (autoHide) {
@@ -215,22 +237,6 @@ function AppShellChrome({ children }: { children: ReactNode }) {
           scheduleHide();
         }}
       >
-        {autoHide && !peekOpen && !sidebarHidden && (
-          <button
-            type="button"
-            aria-label={t("shell.showSidebar")}
-            className="absolute inset-y-0 left-0 z-[90] w-3 cursor-e-resize bg-transparent hover:bg-accent/20"
-            onClick={() => {
-              clearHide();
-              setPeekOpen(true);
-            }}
-            onPointerDown={() => {
-              clearHide();
-              setPeekOpen(true);
-            }}
-          />
-        )}
-
         {!sidebarHidden && (
           <div
             className={`flex h-full min-h-0 ${transitionClass} ${
@@ -269,26 +275,26 @@ function AppShellChrome({ children }: { children: ReactNode }) {
       </div>
 
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Floating chrome — compact top-left controls only (not a full-height strip).
-            Auto-hide peek hit-area stays on the desktop rail, separate from this UI. */}
+        {/* Floating chrome — compact ~44×44 top-left only (never full-height).
+            Peek hit-area is a separate invisible edge strip above. */}
         <div
-          className="pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto items-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
+          className="pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto flex-row items-start justify-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
         >
           {!menuOpen && (
-            <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 self-start lg:hidden">
+            <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 grow-0 self-start lg:hidden">
               <SidebarToggle open={menuOpen} onToggle={toggle} />
             </div>
           )}
           {showDesktopRestore && (
             <button
               type="button"
-              onClick={toggleDesktopSidebar}
-              className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
+              onClick={revealDesktopSidebar}
+              className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
               aria-expanded={false}
               aria-label={t("shell.showSidebar")}
               title={t("shell.showSidebar")}
             >
-              <PanelLeft size={20} strokeWidth={1.5} className="shrink-0" aria-hidden />
+              <PanelLeft size={20} strokeWidth={1.5} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
             </button>
           )}
         </div>

@@ -368,12 +368,12 @@ export function AppSidebar({
             {persistent && onHide && (
               <button
                 type="button"
-                className="inline-flex min-h-tap min-w-tap items-center justify-center rounded-full text-muted hover:bg-navSelected hover:text-foreground"
+                className="inline-flex h-10 w-10 shrink-0 grow-0 items-center justify-center self-center rounded-full text-muted hover:bg-navSelected hover:text-foreground"
                 aria-label={t("shell.hideSidebar")}
                 title={t("shell.hideSidebar")}
                 onClick={onHide}
               >
-                <PanelLeftClose size={18} strokeWidth={ICON_STROKE} />
+                <PanelLeftClose size={18} strokeWidth={ICON_STROKE} className="h-[18px] w-[18px] shrink-0" aria-hidden />
               </button>
             )}
           </div>
@@ -853,13 +853,13 @@ export function SidebarToggle({
       aria-expanded={open}
       aria-controls={controlsId}
       onClick={onToggle}
-      className="app-store-menu-toggle inline-flex h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:hidden"
+      className="app-store-menu-toggle inline-flex h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:hidden"
       aria-label={open ? t("shell.closeMenu") : t("shell.openMenu")}
     >
       {open ? (
-        <X size={20} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+        <X size={20} strokeWidth={ICON_STROKE} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
       ) : (
-        <Menu size={20} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+        <Menu size={20} strokeWidth={ICON_STROKE} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
       )}
     </button>
   );
