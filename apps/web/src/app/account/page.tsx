@@ -13,6 +13,7 @@ import {
   redirectToGate,
   rejectBlockedSession,
 } from "@/lib/auth-session";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 type Account = {
   id: string;
@@ -86,10 +87,13 @@ export default function AccountPage() {
 
   if (!account) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-4">
-        <p className="text-sm text-muted">
-          {error || (hasSession() ? "Loading your account…" : "Redirecting to sign in…")}
-        </p>
+      <div className="relative mx-auto flex min-h-[60vh] max-w-3xl flex-col px-4 py-12 sm:px-6">
+        <ShellMenuAnchor />
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-sm text-muted">
+            {error || (hasSession() ? "Loading your account…" : "Redirecting to sign in…")}
+          </p>
+        </div>
       </div>
     );
   }
@@ -102,7 +106,8 @@ export default function AccountPage() {
     .toUpperCase();
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <div className="relative mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <ShellMenuAnchor />
       <p className="text-xs font-medium uppercase tracking-[0.16em] text-alive">Account</p>
       <h1 className="mt-2 font-display text-display-lg">Your profile</h1>
       <p className="mt-3 text-muted">Manage your OMNIA session and account information.</p>

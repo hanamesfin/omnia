@@ -10,6 +10,7 @@ import {
   type ProductBlueprint,
   type ProductPage,
 } from "@/components/ProductShell";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 export type ProductAppShellProps = {
   agentId: string;
@@ -84,35 +85,46 @@ export function ProductAppShell({
       designSystem={ds}
       className="flex h-full min-h-0 flex-col overflow-hidden"
     >
-      {!immersive && <header
-        className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 sm:px-5"
-        style={{
-          borderColor: "var(--pf-border, var(--border))",
-          background: "var(--pf-surface, var(--surface-solid))",
-        }}
+      <header
+        className={`flex shrink-0 items-center gap-3 px-4 sm:px-5 ${
+          immersive ? "py-2.5" : "justify-between border-b py-3"
+        }`}
+        style={
+          immersive
+            ? undefined
+            : {
+                borderColor: "var(--pf-border, var(--border))",
+                background: "var(--pf-surface, var(--surface-solid))",
+              }
+        }
       >
-        <div className="min-w-0">
-          <p
-            className="truncate text-lg font-semibold tracking-tight sm:text-xl"
-            style={{ fontFamily: "var(--pf-font-display, var(--omnia-font-stack))" }}
-          >
-            {productName}
-          </p>
-          <p className="truncate text-xs" style={{ color: "var(--pf-muted, var(--muted))" }}>
-            {specialty || blueprint.uvp || blueprint.product_type || "Product"}
-          </p>
-        </div>
-        <span
-          className="hidden shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide sm:inline-flex"
-          style={{
-            background: "color-mix(in oklab, var(--pf-accent, var(--alive)) 14%, transparent)",
-            color: "var(--pf-accent, var(--alive))",
-          }}
-        >
-          <Sparkles size={12} aria-hidden />
-          Made with OMNIA
-        </span>
-      </header>}
+        <ShellMenuAnchor className="pointer-events-none relative z-50 flex w-fit max-w-full flex-row items-start justify-start gap-2" />
+        {!immersive ? (
+          <>
+            <div className="min-w-0 flex-1">
+              <p
+                className="truncate text-lg font-semibold tracking-tight sm:text-xl"
+                style={{ fontFamily: "var(--pf-font-display, var(--omnia-font-stack))" }}
+              >
+                {productName}
+              </p>
+              <p className="truncate text-xs" style={{ color: "var(--pf-muted, var(--muted))" }}>
+                {specialty || blueprint.uvp || blueprint.product_type || "Product"}
+              </p>
+            </div>
+            <span
+              className="hidden shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide sm:inline-flex"
+              style={{
+                background: "color-mix(in oklab, var(--pf-accent, var(--alive)) 14%, transparent)",
+                color: "var(--pf-accent, var(--alive))",
+              }}
+            >
+              <Sparkles size={12} aria-hidden />
+              Made with OMNIA
+            </span>
+          </>
+        ) : null}
+      </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

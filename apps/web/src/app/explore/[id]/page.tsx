@@ -17,6 +17,7 @@ import {
   suggestRelated,
   type Suggestable,
 } from "@/lib/explore-suggestions";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 type Product = Suggestable & {
   parent_agent_id?: string;
@@ -192,7 +193,8 @@ export default function ExploreProductPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6" aria-busy>
+      <div className="relative mx-auto max-w-3xl px-4 py-16 sm:px-6" aria-busy>
+        <ShellMenuAnchor />
         <div className="skeleton h-28 w-28 rounded-[22%]" />
         <div className="mt-6 skeleton h-10 max-w-sm rounded-2xl" />
         <div className="mt-4 skeleton h-24 rounded-3xl" />
@@ -207,7 +209,8 @@ export default function ExploreProductPage() {
 
   if (!product) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
+      <div className="relative mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
+        <ShellMenuAnchor />
         <p className="font-display text-xl">Agent not found</p>
         <Link href="/explore" className="mt-4 inline-block text-alive hover:underline">
           Back to Discover
@@ -221,7 +224,8 @@ export default function ExploreProductPage() {
   const attribution = product.remix_attribution;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10 sm:px-10 sm:py-12">
+    <div className="relative mx-auto max-w-4xl px-6 py-10 sm:px-10 sm:py-12">
+      <ShellMenuAnchor />
       <Link
         href="/explore"
         className="interactive inline-flex min-h-tap items-center gap-2 text-sm text-muted"

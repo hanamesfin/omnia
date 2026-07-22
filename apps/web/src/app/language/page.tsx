@@ -10,6 +10,7 @@ import {
   setAutoDetectInputLanguage,
 } from "@/lib/input-language-prefs";
 import { fetchApi } from "@/lib/api";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 export default function LanguagePage() {
   const { locale, setLocale, t } = useI18n();
@@ -71,7 +72,8 @@ export default function LanguagePage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <div className="relative mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <ShellMenuAnchor />
       <p className="text-xs font-medium uppercase tracking-[0.16em] text-alive">{t("lang.eyebrow")}</p>
       <h1 className="mt-2 flex items-center gap-3 font-display text-display-lg">
         <Languages className="text-alive" size={28} aria-hidden />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArchitecturePanel } from "@/components/ArchitecturePanel";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 const STEPS = [
   "Menu → Appearance for themes; Discover / Create / Yours stay one tap away.",
@@ -11,7 +12,8 @@ const STEPS = [
 
 export default function HelpPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <div className="relative mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <ShellMenuAnchor />
       <p className="text-xs font-medium uppercase tracking-[0.16em] text-alive">Help</p>
       <h1 className="mt-2 font-display text-display-lg">How OMNIA works</h1>
       <p className="mt-3 text-muted">

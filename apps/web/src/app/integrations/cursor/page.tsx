@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Code2, Loader2, Sparkles } from "lucide-react";
 import { fetchApi, GENERATE_TIMEOUT_MS } from "@/lib/api";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 type CursorStatus = {
   configured: boolean;
@@ -84,7 +85,8 @@ export default function CursorIntegrationPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-12">
+    <div className="relative mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-12">
+      <ShellMenuAnchor />
       <Link
         href="/account"
         className="interactive inline-flex min-h-tap items-center gap-2 text-sm text-muted"

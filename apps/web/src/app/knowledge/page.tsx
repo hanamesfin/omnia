@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { FolderOpen } from "lucide-react";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 export default function KnowledgePage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <div className="relative mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <ShellMenuAnchor />
       <p className="text-xs font-medium uppercase tracking-[0.16em] text-alive">Knowledge</p>
       <h1 className="mt-2 font-display text-display-lg">Context vault</h1>
       <p className="mt-3 text-muted">

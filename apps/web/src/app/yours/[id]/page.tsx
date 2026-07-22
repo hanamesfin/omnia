@@ -28,6 +28,7 @@ import {
   DynamicAgentRunner,
   type AgentInterfaceSchema,
 } from "@/components/DynamicAgentRunner";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 import { hasProductShell } from "@/components/ProductShell";
 import {
   ToolExecutionList,
@@ -476,7 +477,8 @@ export default function AgentWorkspacePage() {
 
   if (!agent) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6" aria-busy>
+      <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6" aria-busy>
+        <ShellMenuAnchor />
         <div className="skeleton h-16 max-w-md rounded-2xl" />
         <div className="mt-6 skeleton h-[50vh] rounded-[1.35rem]" />
       </div>
@@ -644,7 +646,8 @@ export default function AgentWorkspacePage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
+    <div className="relative mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
+      <ShellMenuAnchor />
       <div className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-3">
           <Link
