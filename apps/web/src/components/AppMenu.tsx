@@ -322,10 +322,10 @@ export function AppSidebar({
             ? appearanceWide
               ? "fixed inset-y-0 left-0"
               : "relative h-full max-h-dvh w-full"
-            : `fixed inset-y-0 left-0 h-dvh w-[min(18rem,92vw)] max-w-[100vw] transition-[transform,opacity] duration-300 ease-spring ${
+            : `fixed inset-y-0 left-0 h-dvh w-[min(18rem,92vw)] max-w-[100vw] transition-[transform,opacity,visibility] duration-300 ease-spring ${
                 open
-                  ? "pointer-events-auto translate-x-0 opacity-100"
-                  : "pointer-events-none -translate-x-[calc(100%+2px)] opacity-0"
+                  ? "pointer-events-auto visible translate-x-0 opacity-100"
+                  : "pointer-events-none invisible -translate-x-[calc(100%+2px)] opacity-0"
               }`
         }`}
         style={

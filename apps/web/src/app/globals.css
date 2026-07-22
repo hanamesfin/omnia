@@ -947,11 +947,15 @@ html[data-reduce-motion="true"] *::after {
 }
 
 /*
-  Shell chrome pad — unlayered so it wins over @layer utilities.
-  Mobile: always clear the floating hamburger (drawer overlays; main stays full-bleed beneath).
-  Desktop: only when data-chrome-pad="1" (sidebar hidden / auto-hide parked).
-  Overlay rail (open or closed) never reserves layout width — pad is for the floating toggle only.
+  Overlay shell — one relative host; main + menu symbol + drawers are stacked layers.
+  Main is absolute inset-0 (full-bleed). Rail/drawer never flex-push a column.
+  Chrome pad only clears the floating hamburger / PanelLeft — not a reserved sidebar strip.
 */
+.app-shell {
+  position: relative;
+  isolation: isolate;
+}
+
 .app-store-main {
   background: var(--background);
   min-width: 0;

@@ -72,6 +72,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   return gated;
 }
 
+/**
+ * Single overlay shell: one relative host, stacked layers.
+ * - Main is always absolute inset-0 (full-bleed) — never a flex sibling that
+ *   shrinks for a sidebar column.
+ * - Menu symbol (hamburger / PanelLeft) floats over main top-left.
+ * - Desktop rail + mobile drawer are absolute/fixed overlays on the same host.
+ */
 function AppShellChrome({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const {
@@ -185,6 +192,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   const showDesktopRestore = sidebarHidden || (autoHide && !peekOpen);
   /** Pad main when a floating toggle occupies the top-left (mobile hamburger or desktop restore). */
   const needsChromePad = isNarrow || showDesktopRestore;
+  const showMenuSymbol = (isNarrow && !menuOpen) || showDesktopRestore;
   const transitionClass = reduceMotion
     ? ""
     : "transition-[width,transform,opacity] duration-300 ease-spring";
@@ -206,7 +214,50 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   }, [autoHide, setHidden, sidebarHidden, sidebarPin]);
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-field">
+    <div
+      className="app-shell relative isolate h-dvh w-full overflow-hidden bg-field"
+      data-shell="overlay"
+    >
+      {/* Layer 0 — full-bleed main (never reserves sidebar width) */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--shell-chrome-pad)] focus:top-4 focus:z-[60] focus:rounded-full focus:bg-alive focus:px-3 focus:py-2 focus:text-on-alive focus:outline-none"
+      >
+        {t("shell.skip")}
+      </a>
+      <main
+        id="main"
+        data-chrome-pad={needsChromePad ? "1" : "0"}
+        className="app-store-main absolute inset-0 min-h-0 min-w-0 overflow-y-auto"
+      >
+        {children}
+      </main>
+
+      {/* Layer 1 — menu symbol floats over main (hamburger / PanelLeft) */}
+      {showMenuSymbol && (
+        <div
+          className="pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto flex-row items-start justify-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
+        >
+          {isNarrow && !menuOpen && (
+            <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 grow-0 self-start lg:hidden">
+              <SidebarToggle open={menuOpen} onToggle={toggle} />
+            </div>
+          )}
+          {showDesktopRestore && (
+            <button
+              type="button"
+              onClick={revealDesktopSidebar}
+              className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
+              aria-expanded={false}
+              aria-label={t("shell.showSidebar")}
+              title={t("shell.showSidebar")}
+            >
+              <PanelLeft size={20} strokeWidth={1.5} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Invisible auto-hide edge hit-area only — never an icon / visible bar. */}
       {autoHide && !peekOpen && !sidebarHidden && (
         <div
@@ -220,7 +271,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         />
       )}
 
-      {/* Desktop rail — absolute overlay; does not reserve layout width */}
+      {/* Layer 2 — desktop rail overlay (does not participate in layout width) */}
       <div
         ref={railRef}
         className={`absolute inset-y-0 left-0 z-[80] hidden h-full min-h-0 overflow-hidden lg:flex ${transitionClass} ${
@@ -288,52 +339,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         )}
       </div>
 
-      {/* Main stays full-bleed; sidebar draws on top */}
-      <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden">
-        {/* Floating chrome — compact ~44×44 top-left only (never full-height).
-            Peek hit-area is a separate invisible edge strip above. */}
-        <div
-          className="pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto flex-row items-start justify-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
-        >
-          {!menuOpen && (
-            <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 grow-0 self-start lg:hidden">
-              <SidebarToggle open={menuOpen} onToggle={toggle} />
-            </div>
-          )}
-          {showDesktopRestore && (
-            <button
-              type="button"
-              onClick={revealDesktopSidebar}
-              className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
-              aria-expanded={false}
-              aria-label={t("shell.showSidebar")}
-              title={t("shell.showSidebar")}
-            >
-              <PanelLeft size={20} strokeWidth={1.5} className="pointer-events-none h-5 w-5 shrink-0" aria-hidden />
-            </button>
-          )}
-        </div>
-
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--shell-chrome-pad)] focus:top-4 focus:z-[60] focus:rounded-full focus:bg-alive focus:px-3 focus:py-2 focus:text-on-alive focus:outline-none"
-        >
-          {t("shell.skip")}
-        </a>
-
-        {/* data-chrome-pad: mobile always; desktop only when PanelLeft restore floats. */}
-        <main
-          id="main"
-          data-chrome-pad={needsChromePad ? "1" : "0"}
-          className="app-store-main min-h-0 min-w-0 flex-1 overflow-y-auto"
-        >
-          {children}
-        </main>
-      </div>
-
-      {/* Mobile drawer — absolute so the fixed panel never participates in the
-          flex row (WebKit can otherwise reserve ~drawer width while closed).
-          pointer-events-none here; open backdrop/aside re-enable hits. */}
+      {/* Layer 3 — mobile drawer overlay; host stays out of flow when closed */}
       <div
         className="pointer-events-none absolute inset-0 z-[80] lg:hidden"
         aria-hidden={!menuOpen}
@@ -343,5 +349,3 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     </div>
   );
 }
-
-
