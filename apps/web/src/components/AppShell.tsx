@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
  * - Main is always absolute inset-0 (full-bleed) — never a flex sibling that
  *   shrinks for a sidebar column.
  * - Menu symbol (hamburger / PanelLeft) floats over main top-left by default,
- *   or portals into a page dock (Explore’s max-w-7xl column).
+ *   or portals into a page dock (Discover / Yours content column).
  * - Desktop rail + mobile drawer are absolute/fixed overlays on the same host.
  */
 function AppShellChrome({ children }: { children: ReactNode }) {
@@ -208,8 +208,8 @@ function AppShellChromeInner({ children }: { children: ReactNode }) {
   const showDesktopRestore = sidebarHidden || (autoHide && !peekOpen);
   /**
    * Pad main only when a viewport-floating toggle occupies the shell top-left.
-   * When Explore (or another page) docks the symbol into its content column,
-   * skip left chrome-pad so we don’t double-offset beside max-w-7xl padding.
+   * When a page docks the symbol into its content column (Discover, Yours),
+   * skip left chrome-pad so we don’t double-offset beside max-w-* padding.
    */
   const needsChromePad = !menuDocked && (isNarrow || showDesktopRestore);
   const showMenuSymbol = (isNarrow && !menuOpen) || showDesktopRestore;

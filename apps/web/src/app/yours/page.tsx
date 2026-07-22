@@ -8,6 +8,7 @@ import { fetchApi } from "@/lib/api";
 import { kindMeta } from "@/lib/agent-kinds";
 import { StarRating } from "@/components/StarRating";
 import { AgentIcon } from "@/components/AgentIcon";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 type LibraryAgent = {
   id: string;
@@ -77,7 +78,8 @@ export default function YoursPage() {
   const appCount = agents.filter((agent) => agent.has_product_app).length;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      <ShellMenuAnchor />
       <header className="relative mb-8 overflow-hidden rounded-[1.75rem] border border-border bg-surface px-6 py-7 shadow-soft sm:px-8 sm:py-9">
         <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-alive/10 blur-3xl" />
         <div className="relative flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">

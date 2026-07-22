@@ -10,7 +10,7 @@ import {
 } from "react";
 
 type ShellMenuDockContextValue = {
-  /** Page-owned portal target for the shell menu symbol (Explore column). */
+  /** Page-owned portal target for the shell menu symbol (content column). */
   dockEl: HTMLElement | null;
   setDockEl: (el: HTMLElement | null) => void;
 };
@@ -37,11 +37,11 @@ export function useShellMenuDock() {
 }
 
 /**
- * Portal target inside Explore’s `max-w-7xl` column.
+ * Portal target inside a page `max-w-*` content column (Discover, Yours, …).
  * AppShell docks the hamburger / PanelLeft here so it shares page padding
  * instead of floating at the viewport/shell edge.
  */
-export function ExploreMenuAnchor() {
+export function ShellMenuAnchor() {
   const { setDockEl } = useShellMenuDock();
   const ref = useCallback(
     (node: HTMLDivElement | null) => {

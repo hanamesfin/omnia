@@ -23,7 +23,7 @@ import { StarRating } from "@/components/StarRating";
 import { AgentIcon } from "@/components/AgentIcon";
 import { VoiceInput } from "@/components/VoiceInput";
 import { ComplexityMark } from "@/components/ComplexityMark";
-import { ExploreMenuAnchor } from "@/components/ShellMenuDock";
+import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 import { specializationPalette } from "@/lib/specialization-colors";
 import type { AgentLogo } from "@/lib/agent-logos";
 
@@ -353,7 +353,7 @@ export default function ExplorePage() {
 
   return (
     <div className="relative mx-auto max-w-7xl overflow-hidden px-4 pb-16 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:px-7 lg:px-10 lg:pt-10">
-      <ExploreMenuAnchor />
+      <ShellMenuAnchor />
       <div className="pointer-events-none absolute -left-32 -top-40 h-96 w-96 rounded-full bg-alive/15 blur-[100px]" />
       <div className="pointer-events-none absolute -right-32 top-20 h-80 w-80 rounded-full bg-fuchsia-500/10 blur-[100px]" />
       <header className="relative mx-auto max-w-3xl text-center">
