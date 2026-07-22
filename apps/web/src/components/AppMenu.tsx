@@ -853,10 +853,14 @@ export function SidebarToggle({
       aria-expanded={open}
       aria-controls={controlsId}
       onClick={onToggle}
-      className="app-store-menu-toggle inline-flex min-h-tap min-w-tap items-center justify-center rounded-xl text-foreground shadow-soft lg:hidden"
+      className="app-store-menu-toggle inline-flex h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:hidden"
       aria-label={open ? t("shell.closeMenu") : t("shell.openMenu")}
     >
-      {open ? <X size={20} strokeWidth={ICON_STROKE} /> : <Menu size={20} strokeWidth={ICON_STROKE} />}
+      {open ? (
+        <X size={20} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+      ) : (
+        <Menu size={20} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+      )}
     </button>
   );
 }

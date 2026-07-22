@@ -798,10 +798,26 @@ html[data-font-family="dyslexic"] {
     border: 1px solid var(--border);
   }
 
+  /* Compact floating menu control — never inherit rail/drawer full height. */
   .app-store-menu-toggle {
     background: var(--sidebar);
     border: 1px solid var(--border);
     color: var(--text-primary);
+    box-sizing: border-box;
+    width: 2.75rem; /* 44px tap */
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    max-width: 2.75rem;
+    max-height: 2.75rem;
+    flex: none;
+    align-self: flex-start;
+  }
+
+  .app-store-menu-toggle svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
   }
 
   .app-store-main {

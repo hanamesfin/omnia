@@ -32,7 +32,9 @@ const SidebarToggle = dynamic(
   () => import("@/components/AppMenu").then((m) => m.SidebarToggle),
   {
     ssr: false,
-    loading: () => <span className="inline-block min-h-tap min-w-tap" aria-hidden />,
+    loading: () => (
+      <span className="inline-block h-11 w-11 min-h-tap min-w-tap shrink-0" aria-hidden />
+    ),
   }
 );
 
@@ -267,12 +269,13 @@ function AppShellChrome({ children }: { children: ReactNode }) {
       </div>
 
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Floating chrome — closed-only on mobile (open drawer owns close in its header). */}
+        {/* Floating chrome — compact top-left controls only (not a full-height strip).
+            Auto-hide peek hit-area stays on the desktop rail, separate from this UI. */}
         <div
-          className="pointer-events-none absolute left-0 top-0 z-50 flex items-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
+          className="pointer-events-none absolute left-0 top-0 z-50 flex h-auto w-auto items-start gap-2 p-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:p-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pt-[max(1rem,env(safe-area-inset-top,0px))]"
         >
           {!menuOpen && (
-            <div className="pointer-events-auto lg:hidden">
+            <div className="pointer-events-auto inline-flex h-11 w-11 shrink-0 self-start lg:hidden">
               <SidebarToggle open={menuOpen} onToggle={toggle} />
             </div>
           )}
@@ -280,12 +283,12 @@ function AppShellChrome({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={toggleDesktopSidebar}
-              className="app-store-menu-toggle pointer-events-auto hidden min-h-tap min-w-tap items-center justify-center rounded-xl text-foreground shadow-soft lg:inline-flex"
+              className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
               aria-expanded={false}
               aria-label={t("shell.showSidebar")}
               title={t("shell.showSidebar")}
             >
-              <PanelLeft size={20} strokeWidth={1.5} />
+              <PanelLeft size={20} strokeWidth={1.5} className="shrink-0" aria-hidden />
             </button>
           )}
         </div>
