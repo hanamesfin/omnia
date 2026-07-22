@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -21,12 +21,15 @@ import { AgentReportCard } from "@/components/AgentReportCard";
 import { EnterpriseArchitectureGraph } from "@/components/EnterpriseArchitectureGraph";
 import { TierUpgradeMotion } from "@/components/TierUpgradeMotion";
 import { ComplexityMark } from "@/components/ComplexityMark";
+import {
+  useCreateStudio,
+  type CreateTier,
+} from "@/components/CreateStudioShell";
 import type { AgentLogo } from "@/lib/agent-logos";
 import { modelDisplayName } from "@/lib/models";
 import { hasProductShell } from "@/components/ProductShell";
 
 type AnswerType = "chip" | "freetext";
-type CreateTier = "normal" | "enterprise";
 
 type InterviewRequirements = {
   purpose?: string;
@@ -70,6 +73,8 @@ type ChatTurn = { role: "assistant" | "user"; content: string };
 export default function CreatePage() {
   const router = useRouter();
   const reduce = useReducedMotion();
+  const { setPhase, setProgress: setStudioProgress, setTier: setStudioTier } =
+    useCreateStudio();
 
   const [createTier, setCreateTier] = useState<CreateTier>("normal");
   const [started, setStarted] = useState(false);
@@ -103,6 +108,26 @@ export default function CreatePage() {
   const [servedModel, setServedModel] = useState<string | null>(null);
   const [chat, setChat] = useState<ChatTurn[]>([]);
   const [knowledgeReady, setKnowledgeReady] = useState(true);
+
+  useEffect(() => {
+    if (generationReport) {
+      setPhase("ready");
+    } else if (!started) {
+      setPhase("mode");
+    } else if (isDone || generating) {
+      setPhase("generate");
+    } else {
+      setPhase("interview");
+    }
+  }, [generationReport, started, isDone, generating, setPhase]);
+
+  useEffect(() => {
+    setStudioProgress(progress);
+  }, [progress, setStudioProgress]);
+
+  useEffect(() => {
+    setStudioTier(started || generationReport ? createTier : null);
+  }, [started, generationReport, createTier, setStudioTier]);
 
   const bootInterview = useCallback(async (tier: CreateTier) => {
     try {
@@ -361,7 +386,7 @@ export default function CreatePage() {
     const topMatch = generationReport.matched_templates?.[0];
     const logoOptions = (generationReport.logo_options || []) as AgentLogo[];
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
         <motion.div initial={reduce ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-alive">Ready</p>
           <h1 className="mt-2 font-display text-display-lg text-foreground">
@@ -531,10 +556,9 @@ export default function CreatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
       <div className="mb-8 max-w-2xl">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-alive">Create</p>
-        <h1 className="mt-2 font-display text-display-lg text-foreground">
+        <h1 className="font-display text-display-lg text-foreground">
           Chat an agent into existence
         </h1>
         <p className="mt-3 text-muted">

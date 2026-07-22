@@ -43,6 +43,11 @@ function isGateChromePath(pathname: string) {
   return isPublicPath(pathname);
 }
 
+/** Create uses its own studio chrome — exclude the global OMNIA sidebar. */
+function isCreateStudioPath(pathname: string) {
+  return pathname === "/create" || pathname.startsWith("/create/");
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || "";
   const gated = (
@@ -56,6 +61,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main id="main" className="h-screen overflow-y-auto bg-field">
             {children}
           </main>
+        ) : isCreateStudioPath(pathname) ? (
+          children
         ) : (
           <AppShellChrome>{children}</AppShellChrome>
         )}

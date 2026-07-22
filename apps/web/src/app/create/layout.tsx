@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CreateStudioShell } from "@/components/CreateStudioShell";
 
 export const metadata: Metadata = {
   title: "Create",
@@ -6,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function CreateLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <CreateStudioShell>{children}</CreateStudioShell>;
 }
