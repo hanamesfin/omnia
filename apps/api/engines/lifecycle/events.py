@@ -64,8 +64,9 @@ class AgentEventLog:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        root = Path(__file__).resolve().parents[2]
-        self._path = path or (root / ".omnia_agent_events.jsonl")
+        from runtime_paths import data_file
+
+        self._path = path or data_file(".omnia_agent_events.jsonl")
         self._lock = threading.Lock()
         self._seq = 0
         self._bootstrap_seq()
@@ -105,9 +106,13 @@ class AgentEventLog:
                 payload=dict(payload or {}),
                 sequence=self._seq,
             )
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            with self._path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+            try:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                with self._path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+            except OSError:
+                # Serverless read-only FS — keep in-memory sequence, skip disk.
+                pass
             return event
 
     def list_for_agent(self, agent_id: str) -> list[AgentLifecycleEvent]:

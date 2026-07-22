@@ -61,43 +61,42 @@ async function timedFetch(input: string, init: RequestInit = {}, timeoutMs = API
 }
 
 /**
- * Return the current session JWT only — never silent demo-login (OM–03).
- * Use `demoLogin()` explicitly from Sign in when needed for defense demos.
+ * Return the current session JWT only. There is no demo/guest account — users
+ * must sign up or sign in with a real account (OM–03).
  */
 export async function ensureAuth(): Promise<string | null> {
   if (typeof window === "undefined") return null;
   return readSessionToken();
 }
 
-/** Explicit demo session — only from a user gesture on Sign in. */
-export async function demoLogin(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-  try {
-    const res = await timedFetch(`${API_BASE}/auth/demo-login`, { method: "POST" }, 4000);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.access_token) {
-      const { markSessionActive } = await import("@/lib/auth-session");
-      markSessionActive(data.access_token as string);
-      return data.access_token as string;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
+let signOutInFlight = false;
 
+/**
+ * A 401 means the session is genuinely gone. Only tear it down when we actually
+ * had a token (otherwise the AuthGate already handles unauthenticated routing),
+ * and never fire the redirect twice for a burst of parallel calls.
+ */
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
+  if (!readSessionToken()) return; // nothing to sign out of — let the gate decide
+  if (signOutInFlight) return;
+  signOutInFlight = true;
   const path = `${window.location.pathname}${window.location.search || ""}`;
   clearSession("expired");
   redirectToGate(path);
 }
 
-export type FetchApiOptions = RequestInit & { timeoutMs?: number };
+export type FetchApiOptions = RequestInit & {
+  timeoutMs?: number;
+  /**
+   * Background/enrichment call — a 401 should surface as an error but must NOT
+   * sign the user out (e.g. similar agents, drift, version timeline).
+   */
+  silentAuth?: boolean;
+};
 
 export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) {
-  const { timeoutMs = API_TIMEOUT_MS, ...init } = options;
+  const { timeoutMs = API_TIMEOUT_MS, silentAuth = false, ...init } = options;
   const token = await ensureAuth();
 
   const headers: Record<string, string> = {
@@ -122,7 +121,7 @@ export async function fetchApi(endpoint: string, options: FetchApiOptions = {}) 
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== "undefined") {
-      handleUnauthorized();
+      if (!silentAuth) handleUnauthorized();
       throw new Error("Your session ended — log back in to continue.");
     }
     const body = (await res.json().catch(() => ({}))) as ApiErrorBody;

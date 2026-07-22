@@ -35,7 +35,7 @@ export function VersionTimeline({ agentId, className = "" }: Props) {
   useEffect(() => {
     if (!agentId) return;
     let cancelled = false;
-    fetchApi(`/agents/${agentId}/history`)
+    fetchApi(`/agents/${agentId}/history`, { silentAuth: true })
       .then((res) => {
         if (cancelled || !res) return;
         setData(res);

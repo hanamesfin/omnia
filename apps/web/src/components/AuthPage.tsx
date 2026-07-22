@@ -14,7 +14,7 @@ import {
   Sparkles,
   Sun,
 } from "lucide-react";
-import { API_BASE, demoLogin } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
 import { markSessionActive, postAuthDestination } from "@/lib/auth-session";
 
@@ -142,20 +142,6 @@ export function AuthPage({ mode }: { mode: Mode }) {
       router.replace(postAuthDestination(isSignUp ? "sign-up" : "sign-in"));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Something went wrong. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const tryDemo = async () => {
-    setError(null);
-    setSubmitting(true);
-    try {
-      const token = await demoLogin();
-      if (!token) throw new Error("Demo sign-in is unavailable right now.");
-      router.replace(postAuthDestination("sign-in"));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Demo sign-in failed.");
     } finally {
       setSubmitting(false);
     }
@@ -359,17 +345,6 @@ export function AuthPage({ mode }: { mode: Mode }) {
                 )}
               </button>
             </form>
-
-            {!isSignUp && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={tryDemo}
-                className="mt-3 inline-flex min-h-tap w-full items-center justify-center rounded-xl border border-border bg-surface/60 px-5 text-sm font-medium text-muted transition hover:text-foreground disabled:opacity-60"
-              >
-                Use demo account
-              </button>
-            )}
 
             <p className="mt-6 text-center text-sm text-muted">
               {isSignUp ? "Already have an account?" : "New to OMNIA?"}{" "}

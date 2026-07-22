@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     # ─── Redis ──────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # ─── Upstash Redis (REST) — durable user store on serverless/Vercel ───────
+    # Set either the Upstash-native names or Vercel KV's KV_REST_API_* names.
+    UPSTASH_REDIS_REST_URL: str = ""
+    UPSTASH_REDIS_REST_TOKEN: str = ""
+    KV_REST_API_URL: str = ""
+    KV_REST_API_TOKEN: str = ""
+
     # ─── Qdrant ─────────────────────────────────────────────────────────────
     QDRANT_URL: str = "http://localhost:6333"
 
@@ -76,7 +83,9 @@ class Settings(BaseSettings):
     # ─── JWT ────────────────────────────────────────────────────────────────
     JWT_SECRET: str = "change-me"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # 30 days — sessions should survive coming back later / opening an agent.
+    # A short TTL made the SPA hard-log-out on the first 401 after expiry.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43_200
 
     # ─── Demo Mode (§11.2) ──────────────────────────────────────────────────
     DEMO_MODE: bool = False

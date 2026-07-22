@@ -122,7 +122,7 @@ export default function ExploreProductPage() {
             });
             setOffline(false);
             setLoading(false);
-            fetchApi(`/agents/${id}/similar`)
+            fetchApi(`/agents/${id}/similar`, { silentAuth: true })
               .then((res) => {
                 if (!cancelled && Array.isArray(res?.similar)) setSimilar(res.similar);
               })

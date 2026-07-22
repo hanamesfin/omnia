@@ -43,8 +43,9 @@ class ModelStatisticsCache:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        root = Path(__file__).resolve().parents[2]
-        self._path = path or root / ".omnia_model_stats.json"
+        from runtime_paths import data_file
+
+        self._path = path or data_file(".omnia_model_stats.json")
         self._lock = threading.Lock()
         self._stats: dict[str, ModelStats] = {}
         self._load()
@@ -64,7 +65,11 @@ class ModelStatisticsCache:
             "updated_at": time.time(),
             "models": {k: v.to_dict() for k, v in self._stats.items()},
         }
-        self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except OSError:
+            pass
 
     def get(self, model: str) -> ModelStats | None:
         return self._stats.get(model)

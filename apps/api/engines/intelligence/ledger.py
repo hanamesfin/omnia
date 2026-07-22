@@ -108,8 +108,9 @@ class RunLedger:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        root = Path(__file__).resolve().parents[2]
-        self._path = path or root / ".omnia_run_ledger.jsonl"
+        from runtime_paths import data_file
+
+        self._path = path or data_file(".omnia_run_ledger.jsonl")
         self._lock = threading.Lock()
         self._index: dict[str, RunRecord] = {}
         self._load()
@@ -140,9 +141,12 @@ class RunLedger:
     def append(self, record: RunRecord) -> RunRecord:
         with self._lock:
             self._index[record.run_id] = record
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            with self._path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(record.to_dict(), ensure_ascii=False) + "\n")
+            try:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                with self._path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(record.to_dict(), ensure_ascii=False) + "\n")
+            except OSError:
+                pass
         return record
 
     def get(self, run_id: str) -> RunRecord | None:
@@ -162,8 +166,11 @@ class RunLedger:
                 "user_rating": rec.user_rating,
                 "timestamp": time.time(),
             }
-            with self._path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(patch, ensure_ascii=False) + "\n")
+            try:
+                with self._path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(patch, ensure_ascii=False) + "\n")
+            except OSError:
+                pass
             return rec
 
     def all_runs(self) -> list[RunRecord]:

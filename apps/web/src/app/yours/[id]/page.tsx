@@ -383,7 +383,7 @@ export default function AgentWorkspacePage() {
       setShowRating(false);
       flash("Rating saved");
       // Refresh eval panel without failing the rating if eval is slow/unavailable
-      fetchApi(`/agents/${id}/evaluation`)
+      fetchApi(`/agents/${id}/evaluation`, { silentAuth: true })
         .then(setEvalData)
         .catch(() => undefined);
     } catch (err) {

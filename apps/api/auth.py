@@ -17,6 +17,50 @@ from config import settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+# Seed/catalog identities may exist for marketplace ownership, but must NEVER
+# become a signed-in session (no demo-login, no token for these accounts).
+SEED_SESSION_BLOCKED_IDS: frozenset[str] = frozenset({
+    "user-demo-admin",
+    "user-demo-viewer",
+})
+SEED_SESSION_BLOCKED_EMAILS: frozenset[str] = frozenset({
+    "admin@demo.com",
+    "viewer@demo.com",
+})
+
+
+def is_blocked_session_identity(
+    *,
+    email: str | None = None,
+    user_id: str | None = None,
+) -> bool:
+    """True for catalog-seed users that must not authenticate as a live profile."""
+    if user_id and str(user_id) in SEED_SESSION_BLOCKED_IDS:
+        return True
+    if email and str(email).strip().lower() in SEED_SESSION_BLOCKED_EMAILS:
+        return True
+    return False
+
+
+def raise_if_blocked_session(
+    *,
+    email: str | None = None,
+    user_id: str | None = None,
+) -> None:
+    if is_blocked_session_identity(email=email, user_id=user_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": {
+                    "code": "auth.demo_disallowed",
+                    "message": "Demo accounts cannot sign in — use a real account",
+                    "retryable": False,
+                }
+            },
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 # ─── Role-Permission Matrix (§5.10) ──────────────────────────────────────────
 ROLE_MATRIX: dict[str, set[str]] = {
     "admin": {
@@ -53,7 +97,13 @@ def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def create_access_token(user_id: str, org_id: str, role: str) -> str:
+def create_access_token(
+    user_id: str,
+    org_id: str,
+    role: str,
+    email: str | None = None,
+    display_name: str | None = None,
+) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": user_id,
@@ -61,6 +111,13 @@ def create_access_token(user_id: str, org_id: str, role: str) -> str:
         "role": role,
         "exp": expire,
     }
+    # Self-contained claims: on serverless the user row may live on a different
+    # instance, so the token carries enough identity to rebuild the session
+    # without a shared DB — and without ever falling back to a demo account.
+    if email:
+        payload["email"] = email
+    if display_name:
+        payload["name"] = display_name
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -84,6 +141,7 @@ async def get_current_user(
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise cred_exc
+        raise_if_blocked_session(user_id=user_id, email=payload.get("email"))
     except JWTError:
         raise cred_exc
 
@@ -92,6 +150,7 @@ async def get_current_user(
         user = result.scalar_one_or_none()
         if user is None:
             raise cred_exc
+        raise_if_blocked_session(user_id=user.id, email=user.email)
         return user
 
 

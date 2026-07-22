@@ -20,8 +20,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
-from auth import create_access_token, hash_password, verify_password, ROLE_MATRIX
+from auth import (
+    create_access_token,
+    hash_password,
+    verify_password,
+    ROLE_MATRIX,
+    raise_if_blocked_session,
+)
 from config import settings
+import user_store
 from engines.user_intelligence.fsm import (
     MIN_USER_TURNS,
     advance_fsm,
@@ -710,11 +717,15 @@ def _session_can_generate(session: dict[str, Any]) -> tuple[bool, str]:
     if not confirmed:
         return False, "Confirm with “I'm ready — generate” before creation."
     if str(session.get("create_tier") or "normal") == "enterprise":
-        ready_docs = [
-            d
-            for d in get_knowledge_store().list_documents(session_id=session["id"])
-            if d.status == "ready"
-        ]
+        try:
+            ready_docs = [
+                d
+                for d in get_knowledge_store().list_documents(session_id=session["id"])
+                if d.status == "ready"
+            ]
+        except OSError as exc:
+            log.warning("knowledge.generate_gate_failed", error=str(exc))
+            ready_docs = []
         if not ready_docs:
             return False, (
                 "Enterprise Create requires at least one processed knowledge document "
@@ -726,10 +737,15 @@ def _session_can_generate(session: dict[str, Any]) -> tuple[bool, str]:
 def _enterprise_knowledge_ready(session: dict[str, Any]) -> bool:
     if str(session.get("create_tier") or "normal") != "enterprise":
         return True
-    return any(
-        d.status == "ready"
-        for d in get_knowledge_store().list_documents(session_id=session["id"])
-    )
+    try:
+        return any(
+            d.status == "ready"
+            for d in get_knowledge_store().list_documents(session_id=session["id"])
+        )
+    except OSError as exc:
+        # Never block Create on ephemeral FS quirks — treat as not ready.
+        log.warning("knowledge.ready_check_failed", error=str(exc))
+        return False
 
 
 def _load_upload_text(upload_id: str) -> str:
@@ -1444,14 +1460,12 @@ STORE: dict[str, Any] = {
 import json as _json_store
 import os as _os_store
 
-# Vercel Functions only allow writes under /tmp (ephemeral per instance).
-_PERSIST_PATH = (
-    "/tmp/.omnia_store.json"
-    if _os_store.environ.get("VERCEL")
-    else _os_store.path.join(_os_store.path.dirname(__file__), ".omnia_store.json")
-)
+# Vercel / Lambda: only /tmp is writable. Use shared helper so every store agrees.
+from runtime_paths import data_file, is_serverless as _is_serverless
+
+_PERSIST_PATH = str(data_file(".omnia_store.json"))
 _PERSIST_KEYS = ("users", "orgs", "agents", "library", "listings", "evals", "agent_memory")
-_ON_VERCEL = bool(_os_store.environ.get("VERCEL"))
+_ON_VERCEL = _is_serverless()
 
 
 def _save_store() -> None:
@@ -2041,7 +2055,9 @@ def _seed() -> None:
     if STORE["users"]:
         _ensure_seed_catalog()
         return
-    # Stable IDs so JWTs survive uvicorn --reload (in-memory store resets)
+    # Stable IDs so catalog ownership survives uvicorn --reload.
+    # This user owns seed listings only — it is NOT a sign-in identity
+    # (login/token/`/auth/me` reject it via is_blocked_session_identity).
     org_id = "org-demo-local"
     user_id = "user-demo-admin"
     STORE["orgs"][org_id] = {"id": org_id, "name": "Local Demo Org"}
@@ -2049,9 +2065,12 @@ def _seed() -> None:
         "id": user_id,
         "email": "admin@demo.com",
         "display_name": "Demo Admin",
-        "hashed_password": hash_password("demo123"),
+        # Empty hash — password login is impossible even if a check is missed.
+        "hashed_password": "",
         "role": "admin",
         "org_id": org_id,
+        "auth_provider": "seed",
+        "session_blocked": True,
     }
     # Seed published agents — mixed product kinds (not all chatbots).
     for aid, name, specialty, domain, kind, wilson, count, avg, developer in _SEED_CATALOG:
@@ -2068,7 +2087,18 @@ def _seed() -> None:
             user_id=user_id,
             org_id=org_id,
         )
-    log.info("standalone.seeded", user="admin@demo.com", password="demo123")
+    log.info("standalone.seeded", catalog_owner="user-demo-admin", session="blocked")
+
+
+def _lock_seed_user_session() -> None:
+    """Ensure any restored/persisted seed user cannot authenticate."""
+    for uid in ("user-demo-admin", "user-demo-viewer"):
+        user = STORE["users"].get(uid)
+        if not user:
+            continue
+        user["hashed_password"] = ""
+        user["session_blocked"] = True
+        user["auth_provider"] = "seed"
 
 
 def _deterministic_prompt(
@@ -2191,7 +2221,7 @@ class SessionUser(BaseModel):
     auth_provider: str = "email"
 
 
-def _user_from_token(authorization: str | None) -> SessionUser:
+async def _user_from_token(authorization: str | None) -> SessionUser:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, {"error": {"code": "auth.missing", "message": "Sign in required", "retryable": False}})
     token = authorization.removeprefix("Bearer ").strip()
@@ -2201,15 +2231,37 @@ def _user_from_token(authorization: str | None) -> SessionUser:
         uid = payload.get("sub")
     except JWTError:
         raise HTTPException(401, {"error": {"code": "auth.invalid_token", "message": "Invalid or expired token", "retryable": False}})
+    if not uid:
+        raise HTTPException(401, {"error": {"code": "auth.invalid_token", "message": "Invalid or expired token", "retryable": False}})
+
+    # Reject seed/demo identities before hydrating anything into the session.
+    raise_if_blocked_session(user_id=str(uid), email=payload.get("email"))
+
     user = STORE["users"].get(uid)
     if not user:
-        # After reload, old random UUIDs vanish — fall back to demo admin
-        user = next(
-            (u for u in STORE["users"].values() if u.get("email") == "admin@demo.com"),
-            None,
-        ) or next(iter(STORE["users"].values()), None)
+        # Prefer durable store (survives across serverless instances).
+        remote = await user_store.get_user_by_id(uid)
+        if remote:
+            user = _hydrate_user(remote)
     if not user:
-        raise HTTPException(401, {"error": {"code": "auth.invalid_token", "message": "User not found", "retryable": False}})
+        # Rebuild from self-contained JWT claims — NEVER from a demo account.
+        email = payload.get("email")
+        if not email:
+            raise HTTPException(401, {"error": {"code": "auth.invalid_token", "message": "Session is stale — sign in again", "retryable": False}})
+        raise_if_blocked_session(email=str(email), user_id=str(uid))
+        user = {
+            "id": uid,
+            "email": email,
+            "display_name": payload.get("name") or email.split("@")[0],
+            "role": payload.get("role") or "editor",
+            "org_id": payload.get("org") or uid,
+            "auth_provider": "email",
+        }
+        STORE["users"][uid] = user
+        STORE["library"].setdefault(uid, [])
+
+    raise_if_blocked_session(email=str(user.get("email") or ""), user_id=str(user.get("id") or ""))
+
     return SessionUser(
         id=user["id"],
         email=user["email"],
@@ -2220,8 +2272,8 @@ def _user_from_token(authorization: str | None) -> SessionUser:
     )
 
 
-def require_user(authorization: str | None = Header(default=None)) -> SessionUser:
-    return _user_from_token(authorization)
+async def require_user(authorization: str | None = Header(default=None)) -> SessionUser:
+    return await _user_from_token(authorization)
 
 
 def require_perm(permission: str):
@@ -2239,6 +2291,7 @@ async def lifespan(app: FastAPI):
     # Respect .env DEMO_MODE — do not force True (blocks live model creation)
     _seed()
     _load_store()
+    _lock_seed_user_session()
     _ensure_seed_catalog()
     log.info("standalone.startup", port=8000, demo_mode=settings.DEMO_MODE, llm=_llm_usable())
     yield
@@ -2283,12 +2336,6 @@ async def health():
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 
-class DemoLoginOut(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: dict
-
-
 class RegisterIn(BaseModel):
     email: str
     password: str = Field(min_length=8, max_length=128)
@@ -2296,8 +2343,15 @@ class RegisterIn(BaseModel):
 
 
 def _auth_payload(user: dict) -> dict:
+    raise_if_blocked_session(email=str(user.get("email") or ""), user_id=str(user.get("id") or ""))
     return {
-        "access_token": create_access_token(user["id"], user["org_id"], user["role"]),
+        "access_token": create_access_token(
+            user["id"],
+            user["org_id"],
+            user["role"],
+            email=user["email"],
+            display_name=user["display_name"],
+        ),
         "token_type": "bearer",
         "user": {
             "id": user["id"],
@@ -2309,30 +2363,15 @@ def _auth_payload(user: dict) -> dict:
     }
 
 
-@app.post("/api/v1/auth/demo-login", response_model=DemoLoginOut)
-async def demo_login():
-    """One-click local login — no form needed for Create on a laptop without Docker."""
-    _seed()
-    user = next(iter(STORE["users"].values()))
-    token = create_access_token(user["id"], user["org_id"], user["role"])
-    return DemoLoginOut(
-        access_token=token,
-        user={
-            "id": user["id"],
-            "email": user["email"],
-            "display_name": user["display_name"],
-            "role": user["role"],
-            "org_id": user["org_id"],
-        },
-    )
-
-
 @app.post("/api/v1/auth/register")
 async def register(req: RegisterIn):
     email = req.email.strip().lower()
+    raise_if_blocked_session(email=email)
     if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
         raise HTTPException(400, {"error": {"code": "auth.invalid_email", "message": "Enter a valid email address", "retryable": True}})
-    if any(str(user.get("email") or "").lower() == email for user in STORE["users"].values()):
+    local_hit = any(str(user.get("email") or "").lower() == email for user in STORE["users"].values())
+    # Durable check first so the same email can't register twice across instances.
+    if local_hit or (await user_store.get_user_by_email(email)) is not None:
         raise HTTPException(409, {"error": {"code": "auth.email_exists", "message": "An account with this email already exists", "retryable": False}})
 
     user_id = _uid()
@@ -2351,6 +2390,7 @@ async def register(req: RegisterIn):
     STORE["users"][user_id] = user
     STORE["library"].setdefault(user_id, [])
     _save_store()
+    await user_store.save_user(user)
     return _auth_payload(user)
 
 
@@ -2372,17 +2412,52 @@ async def auth_providers():
 from fastapi.security import OAuth2PasswordRequestForm
 
 
+def _hydrate_user(user: dict) -> dict:
+    """Cache a durable user into this instance's STORE so subsequent requests work."""
+    uid = user["id"]
+    STORE["users"][uid] = user
+    STORE["orgs"].setdefault(
+        user["org_id"],
+        {"id": user["org_id"], "name": f"{user.get('display_name') or 'User'}'s workspace"},
+    )
+    STORE["library"].setdefault(uid, [])
+    return user
+
+
 @app.post("/api/v1/auth/login")
 async def login_oauth(form: OAuth2PasswordRequestForm = Depends()):
     email = form.username.strip().lower()
+    raise_if_blocked_session(email=email)
     user = next((u for u in STORE["users"].values() if str(u.get("email") or "").lower() == email), None)
+    if not user:
+        # Other serverless instances may hold the only copy — ask Upstash.
+        remote = await user_store.get_user_by_email(email)
+        if remote:
+            user = _hydrate_user(remote)
     if not user or not verify_password(form.password, str(user.get("hashed_password") or "")):
         raise HTTPException(401, {"error": {"code": "auth.bad_credentials", "message": "Invalid email or password", "retryable": False}})
+    raise_if_blocked_session(email=str(user.get("email") or ""), user_id=str(user.get("id") or ""))
     return _auth_payload(user)
+
+
+@app.post("/api/v1/auth/demo-login")
+async def demo_login_removed():
+    """Hard-disabled: seed catalog owner must never become a live session."""
+    raise HTTPException(
+        410,
+        {
+            "error": {
+                "code": "auth.demo_disallowed",
+                "message": "Demo sign-in is disabled — create or use a real account",
+                "retryable": False,
+            }
+        },
+    )
 
 
 @app.get("/api/v1/auth/me")
 async def me(user: SessionUser = Depends(require_user)):
+    raise_if_blocked_session(email=user.email, user_id=user.id)
     return user.model_dump()
 
 
@@ -2442,16 +2517,25 @@ def _oauth_provider_ready(provider: str) -> bool:
     return False
 
 
-def _oauth_upsert_user(email: str, display_name: str, provider: str) -> dict:
+async def _oauth_upsert_user(email: str, display_name: str, provider: str) -> dict:
     """Find an existing user by email or create a fresh account for the OAuth identity."""
     email = (email or "").strip().lower()
     if not email:
         raise ValueError("OAuth profile did not include an email address.")
+    raise_if_blocked_session(email=email)
     existing = next(
         (u for u in STORE["users"].values() if str(u.get("email") or "").lower() == email),
         None,
     )
+    if not existing:
+        remote = await user_store.get_user_by_email(email)
+        if remote:
+            existing = _hydrate_user(remote)
     if existing:
+        raise_if_blocked_session(email=str(existing.get("email") or ""), user_id=str(existing.get("id") or ""))
+        # Keep provider tag fresh and re-persist so cold instances can find them.
+        existing["auth_provider"] = provider or existing.get("auth_provider") or "oauth"
+        await user_store.save_user(existing)
         return existing
 
     user_id = _uid()
@@ -2470,6 +2554,7 @@ def _oauth_upsert_user(email: str, display_name: str, provider: str) -> dict:
     STORE["users"][user_id] = user
     STORE["library"].setdefault(user_id, [])
     _save_store()
+    await user_store.save_user(user)
     return user
 
 
@@ -2600,12 +2685,19 @@ async def oauth_callback(provider: str, code: str | None = None, state: str | No
             email, name = await _oauth_fetch_github(code, redirect_uri)
         if not email:
             return RedirectResponse(_oauth_web_return(error="Could not read your email from the provider."))
-        user = _oauth_upsert_user(email, name, provider)
+        user = await _oauth_upsert_user(email, name, provider)
     except Exception as exc:  # noqa: BLE001
         log.warning("oauth.callback_failed", provider=provider, error=str(exc)[:200])
         return RedirectResponse(_oauth_web_return(error=f"Could not complete {provider} sign-in."))
 
-    token = create_access_token(user["id"], user["org_id"], user["role"])
+    raise_if_blocked_session(email=str(user.get("email") or ""), user_id=str(user.get("id") or ""))
+    token = create_access_token(
+        user["id"],
+        user["org_id"],
+        user["role"],
+        email=user["email"],
+        display_name=user["display_name"],
+    )
     return RedirectResponse(_oauth_web_return(token=token))
 
 

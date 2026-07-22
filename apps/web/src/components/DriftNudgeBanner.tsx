@@ -24,7 +24,7 @@ export function DriftNudgeBanner({ agentId, className = "" }: Props) {
   useEffect(() => {
     if (!agentId) return;
     let cancelled = false;
-    fetchApi(`/agents/${agentId}/drift`)
+    fetchApi(`/agents/${agentId}/drift`, { silentAuth: true })
       .then((res) => {
         if (!cancelled && Array.isArray(res?.nudges)) setNudges(res.nudges);
       })

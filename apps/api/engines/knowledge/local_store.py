@@ -14,13 +14,13 @@ from engines.knowledge.store import (
     KnowledgeDocument,
     SearchHit,
 )
+from runtime_paths import data_dir
 
 
 class LocalKnowledgeStore:
     def __init__(self, root: Path | None = None) -> None:
-        base = Path(__file__).resolve().parents[2]
-        self._root = root or (base / ".omnia_knowledge")
-        self._root.mkdir(parents=True, exist_ok=True)
+        # Never mkdir under /var/task — Vercel is read-only there (Errno 30).
+        self._root = root or data_dir(".omnia_knowledge")
         self._docs_path = self._root / "documents.json"
         self._chunks_path = self._root / "chunks.json"
         self._lock = threading.Lock()
@@ -56,18 +56,35 @@ class LocalKnowledgeStore:
                 pass
 
     def _save(self) -> None:
-        self._root.mkdir(parents=True, exist_ok=True)
-        self._docs_path.write_text(
-            json.dumps({"documents": [d.to_dict() for d in self._docs.values()]}, indent=2),
-            encoding="utf-8",
-        )
-        payload: dict[str, Any] = {
-            "chunks": {
-                doc_id: [c.to_dict() for c in chunks]
-                for doc_id, chunks in self._chunks.items()
+        try:
+            self._root.mkdir(parents=True, exist_ok=True)
+            self._docs_path.write_text(
+                json.dumps({"documents": [d.to_dict() for d in self._docs.values()]}, indent=2),
+                encoding="utf-8",
+            )
+            payload: dict[str, Any] = {
+                "chunks": {
+                    doc_id: [c.to_dict() for c in chunks]
+                    for doc_id, chunks in self._chunks.items()
+                }
             }
-        }
-        self._chunks_path.write_text(json.dumps(payload), encoding="utf-8")
+            self._chunks_path.write_text(json.dumps(payload), encoding="utf-8")
+        except OSError:
+            # Last resort: relocate to /tmp mid-request so Create doesn't 500.
+            self._root = data_dir(".omnia_knowledge")
+            self._docs_path = self._root / "documents.json"
+            self._chunks_path = self._root / "chunks.json"
+            self._docs_path.write_text(
+                json.dumps({"documents": [d.to_dict() for d in self._docs.values()]}, indent=2),
+                encoding="utf-8",
+            )
+            payload = {
+                "chunks": {
+                    doc_id: [c.to_dict() for c in chunks]
+                    for doc_id, chunks in self._chunks.items()
+                }
+            }
+            self._chunks_path.write_text(json.dumps(payload), encoding="utf-8")
 
     def upsert_document(self, doc: KnowledgeDocument) -> KnowledgeDocument:
         with self._lock:
