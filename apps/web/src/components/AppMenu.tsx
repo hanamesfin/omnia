@@ -302,6 +302,9 @@ export function AppSidebar({
             open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           }`}
           onClick={onClose}
+          ref={(el) => {
+            if (el) el.inert = !open;
+          }}
         />
       )}
 
@@ -309,17 +312,21 @@ export function AppSidebar({
         id={navId}
         aria-label="OMNIA menu"
         aria-hidden={!visible}
-        data-collapsed={iconsOnly ? "true" : "false"}
-        className={`app-store-sidebar z-[80] flex h-dvh min-h-0 shrink-0 flex-col ${
-          persistent && appearanceWide
-            ? "fixed inset-y-0 left-0 shadow-float"
-            : persistent
-              ? "relative h-full max-h-dvh"
-              : `fixed inset-y-0 left-0 h-dvh w-[min(18rem,92vw)] max-w-[100vw] shadow-float transition-[transform,opacity] duration-300 ease-spring ${
-                  open
-                    ? "translate-x-0 opacity-100"
-                    : "-translate-x-full opacity-0 pointer-events-none"
-                }`
+        data-open={visible ? "true" : "false"}
+        {...(persistent ? { "data-collapsed": iconsOnly ? "true" : "false" } : {})}
+        ref={(el) => {
+          if (el) el.inert = !visible;
+        }}
+        className={`app-store-sidebar z-[80] flex h-dvh min-h-0 flex-col shadow-float ${
+          persistent
+            ? appearanceWide
+              ? "fixed inset-y-0 left-0"
+              : "relative h-full max-h-dvh w-full"
+            : `fixed inset-y-0 left-0 h-dvh w-[min(18rem,92vw)] max-w-[100vw] transition-[transform,opacity] duration-300 ease-spring ${
+                open
+                  ? "pointer-events-auto translate-x-0 opacity-100"
+                  : "pointer-events-none -translate-x-[calc(100%+2px)] opacity-0"
+              }`
         }`}
         style={
           persistent
@@ -627,9 +634,10 @@ export function AppSidebar({
               <div className={`shrink-0 border-t border-border p-3 ${iconsOnly ? "flex justify-center" : ""}`}>
                 {(() => {
                   const sessionLive = hasSession();
-                  const signedIn = Boolean(account?.display_name || account?.email) || sessionLive;
+                  const named = Boolean(account?.display_name || account?.email);
+                  const signedIn = named || sessionLive;
                   const label = account?.display_name || account?.email || (sessionLive ? "Account" : "Sign in");
-                  const initials = account?.display_name || account?.email
+                  const initials = named
                     ? (account!.display_name || account!.email)
                         .split(/[\s@.]+/)
                         .filter(Boolean)
@@ -638,10 +646,10 @@ export function AppSidebar({
                         .slice(0, 2)
                         .toUpperCase()
                     : sessionLive
-                      ? "…"
+                      ? "A"
                       : "?";
                   const href = signedIn ? "/account" : "/sign-in";
-                  const subtitle = account?.email || (sessionLive ? "Open account" : "Open account");
+                  const subtitle = account?.email || (signedIn ? "Open account" : "Open account");
                   return (
                     <Link
                       href={href}

@@ -199,7 +199,7 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   }, [autoHide, setHidden, sidebarHidden, sidebarPin]);
 
   return (
-    <div className="relative flex h-dvh w-full overflow-hidden bg-field">
+    <div className="relative h-dvh w-full overflow-hidden bg-field">
       {/* Invisible auto-hide edge hit-area only — never an icon / visible bar. */}
       {autoHide && !peekOpen && !sidebarHidden && (
         <div
@@ -213,10 +213,12 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         />
       )}
 
-      {/* Desktop rail — full viewport height; shrink-0 so peek/resize stay interactive */}
+      {/* Desktop rail — absolute overlay; does not reserve layout width */}
       <div
         ref={railRef}
-        className={`relative hidden h-full min-h-0 shrink-0 self-stretch overflow-hidden lg:flex ${transitionClass}`}
+        className={`absolute inset-y-0 left-0 z-[80] hidden h-full min-h-0 overflow-hidden lg:flex ${transitionClass} ${
+          showDesktopRail ? "pointer-events-auto" : "pointer-events-none"
+        }`}
         style={{
           width: showDesktopRail ? railWidth : 0,
         }}
@@ -279,7 +281,8 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         )}
       </div>
 
-      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {/* Main stays full-bleed; sidebar draws on top */}
+      <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden">
         {/* Floating chrome — compact ~44×44 top-left only (never full-height).
             Peek hit-area is a separate invisible edge strip above. */}
         <div
@@ -321,8 +324,13 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      {/* Mobile drawer — portal-sibling of main so fixed overlay isn't clipped */}
-      <div className="lg:hidden">
+      {/* Mobile drawer — absolute so the fixed panel never participates in the
+          flex row (WebKit can otherwise reserve ~drawer width while closed).
+          pointer-events-none here; open backdrop/aside re-enable hits. */}
+      <div
+        className="pointer-events-none absolute inset-0 z-[80] lg:hidden"
+        aria-hidden={!menuOpen}
+      >
         <AppSidebar open={menuOpen} onClose={close} collapsed={false} />
       </div>
     </div>
