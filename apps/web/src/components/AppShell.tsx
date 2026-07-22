@@ -77,6 +77,8 @@ function AppShellChrome({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  /** Below `lg`: floating hamburger always shown — main needs chrome pad. */
+  const [isNarrow, setIsNarrow] = useState(true);
   const close = useCallback(() => setMenuOpen(false), []);
   const toggle = useCallback(() => setMenuOpen((v) => !v), []);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,10 +125,11 @@ function AppShellChrome({ children }: { children: ReactNode }) {
     if (!autoHide) setPeekOpen(false);
   }, [autoHide]);
 
-  /** Close mobile drawer when crossing to desktop rail breakpoint. */
+  /** Track `lg` breakpoint: close drawer on desktop; drive chrome pad on mobile. */
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const onChange = () => {
+      setIsNarrow(!mq.matches);
       if (mq.matches) setMenuOpen(false);
     };
     onChange();
@@ -173,6 +176,8 @@ function AppShellChrome({ children }: { children: ReactNode }) {
    * (fully hidden, or auto-hide parked off-screen). Never a full-height control.
    */
   const showDesktopRestore = sidebarHidden || (autoHide && !peekOpen);
+  /** Pad main when a floating toggle occupies the top-left (mobile hamburger or desktop restore). */
+  const needsChromePad = isNarrow || showDesktopRestore;
   const transitionClass = reduceMotion
     ? ""
     : "transition-[width,transform,opacity] duration-300 ease-spring";
@@ -306,10 +311,10 @@ function AppShellChrome({ children }: { children: ReactNode }) {
           {t("shell.skip")}
         </a>
 
-        {/* data-chrome-pad: desktop restore only. Mobile pad is CSS @media — drawer overlays. */}
+        {/* data-chrome-pad: mobile always; desktop only when PanelLeft restore floats. */}
         <main
           id="main"
-          data-chrome-pad={showDesktopRestore ? "1" : "0"}
+          data-chrome-pad={needsChromePad ? "1" : "0"}
           className="app-store-main min-h-0 min-w-0 flex-1 overflow-y-auto"
         >
           {children}

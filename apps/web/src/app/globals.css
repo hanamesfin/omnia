@@ -837,29 +837,6 @@ html[data-font-family="dyslexic"] {
     cursor: default;
   }
 
-  .app-store-main {
-    background: var(--background);
-    min-width: 0;
-    width: 100%;
-  }
-
-  /* Mobile: reserve left gutter for the floating hamburger. Drawer is a fixed
-     full-viewport overlay — main stays full width beneath it. */
-  @media (max-width: 1023px) {
-    .app-store-main {
-      padding-left: var(--shell-chrome-pad);
-      scroll-padding-left: var(--shell-chrome-pad);
-    }
-  }
-
-  /* Desktop: pad only when the rail is hidden and the restore control floats. */
-  @media (min-width: 1024px) {
-    .app-store-main[data-chrome-pad="1"] {
-      padding-left: var(--shell-chrome-pad);
-      scroll-padding-left: var(--shell-chrome-pad);
-    }
-  }
-
   .app-store-page {
     background: transparent;
   }
@@ -967,4 +944,35 @@ html[data-reduce-motion="true"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+
+/*
+  Shell chrome pad — unlayered so it wins over @layer utilities.
+  Mobile: always clear the floating hamburger (drawer overlays; main stays full-bleed beneath).
+  Desktop: only when data-chrome-pad="1" (sidebar hidden / auto-hide parked). Expanded rail → pad 0.
+*/
+.app-store-main {
+  background: var(--background);
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .app-store-main,
+  .app-store-main[data-chrome-pad="1"] {
+    padding-left: var(--shell-chrome-pad);
+    scroll-padding-left: var(--shell-chrome-pad);
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-store-main[data-chrome-pad="1"] {
+    padding-left: var(--shell-chrome-pad);
+    scroll-padding-left: var(--shell-chrome-pad);
+  }
+
+  .app-store-main[data-chrome-pad="0"] {
+    padding-left: 0;
+    scroll-padding-left: 0;
+  }
 }
