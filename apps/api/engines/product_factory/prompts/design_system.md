@@ -55,3 +55,7 @@ Return ONLY valid JSON:
 Default fonts (Collections): Platypi (display), Host Grotesk (body), IBM Plex Mono (meta). Domain variants may swap fonts but never Inter/Roboto/Arial.
 Finance → trust/clarity. Creative → expressive. Research → dense. Luxury → restrained whitespace. Developer → speed/keyboard.
 Hero/first viewport: brand + one job + one CTA path — no decorative chrome.
+
+When Product Factory Figma codegen runs (`PRODUCT_FACTORY_FIGMA_CODEGEN`), set
+`chrome.codegen` = true so consumers know `generated_frontend` TSX is authoritative
+over ProductAppShell skinning. Default remains false / omit when heuristics-only.

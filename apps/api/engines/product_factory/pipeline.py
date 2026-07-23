@@ -9,7 +9,7 @@ from typing import Any
 import structlog
 
 from engines.product_factory.gates import gate_phase
-from engines.product_factory.phases import PHASE_LABELS, PHASE_ORDER
+from engines.product_factory.phases import PHASE_LABELS, PHASE_ORDER, SOFT_PHASES
 from engines.product_factory.specialists import critic_prompt, heuristic_phase, load_prompt
 from engines.product_factory.workspace import empty_workspace, merge_phase_output, to_product_blueprint
 
@@ -45,6 +45,10 @@ async def run_product_factory(
 
     On Vercel Hobby (300s maxDuration), pass llm_phases={"classify","ai_core"}
     and skip_critic=True so non-core phases stay heuristic and finish in time.
+
+    Soft phases ui_codegen / backend_codegen never hard-fail invent: when
+    PRODUCT_FACTORY_FIGMA_CODEGEN is off, token missing, or vision fails, they
+    skip and leave page_ux / architecture heuristics intact.
     """
     transcript = _format_chat(chat)
     req_blob = json.dumps(requirements or {}, default=str)[:4000]
@@ -77,7 +81,20 @@ async def run_product_factory(
             data: dict[str, Any] | None = None
             used_model = "heuristic"
             try:
-                if allow_llm:
+                if phase_id in SOFT_PHASES:
+                    data, used_model = await _run_codegen_phase(
+                        phase_id=phase_id,
+                        workspace=workspace,
+                        name=name,
+                        transcript=transcript,
+                        preferred_model=preferred_model,
+                        llm_complete=llm_complete,
+                        parse_json=parse_json,
+                        allow_llm=allow_llm,
+                    )
+                    if used_model == "skipped":
+                        created_via = created_via  # unchanged
+                elif allow_llm:
                     data, used_model = await _run_specialist(
                         phase_id=phase_id,
                         workspace=workspace,
@@ -92,7 +109,7 @@ async def run_product_factory(
                     data = heuristic_phase(phase_id, workspace, name=name, transcript=transcript)
                     used_model = "heuristic"
                     created_via = "product_factory_serverless"
-                if used_model != "heuristic":
+                if used_model not in ("heuristic", "skipped") and used_model:
                     served_models.append(used_model)
             except Exception as e:
                 log.warning("product_factory.phase_llm_failed", phase=phase_id, error=str(e))
@@ -102,14 +119,24 @@ async def run_product_factory(
             if not data and use_heuristics_on_failure:
                 data = heuristic_phase(phase_id, workspace, name=name, transcript=transcript)
                 used_model = "heuristic"
-                created_via = "product_factory_heuristic"
+                if phase_id not in SOFT_PHASES:
+                    created_via = "product_factory_heuristic"
 
             if not data:
-                last_errors = last_errors or ["empty specialist output"]
-                continue
+                if phase_id in SOFT_PHASES:
+                    # Soft phases always advance even with empty output
+                    data = {"skipped": True}
+                    used_model = "skipped"
+                else:
+                    last_errors = last_errors or ["empty specialist output"]
+                    continue
 
-            # Critic pass (skip for heuristic-only / serverless fast path)
-            if used_model != "heuristic" and not skip_critic:
+            # Critic pass (skip for heuristic-only / serverless / soft codegen)
+            if (
+                used_model not in ("heuristic", "skipped")
+                and not skip_critic
+                and phase_id not in SOFT_PHASES
+            ):
                 try:
                     critiqued, cmodel = await _run_critic(
                         phase_id=phase_id,
@@ -173,17 +200,19 @@ async def run_product_factory(
                 repair = heuristic_phase(phase_id, workspace, name=name, transcript=transcript)
                 candidate = merge_phase_output(workspace, phase_id, repair)
                 ok2, failures2 = gate_phase(phase_id, candidate)
-                if ok2:
+                if ok2 or phase_id in SOFT_PHASES:
                     workspace = candidate
-                    created_via = "product_factory_heuristic"
+                    if phase_id not in SOFT_PHASES:
+                        created_via = "product_factory_heuristic"
                     workspace.setdefault("phases", []).append(
                         {
                             "id": phase_id,
                             "label": label,
                             "status": "passed",
                             "attempt": attempt,
-                            "summary": _phase_summary(phase_id, workspace) + " (heuristic repair)",
-                            "model": "heuristic",
+                            "summary": _phase_summary(phase_id, workspace)
+                            + (" (heuristic repair)" if phase_id not in SOFT_PHASES else " (skipped)"),
+                            "model": "heuristic" if phase_id not in SOFT_PHASES else "skipped",
                         }
                     )
                     await emit(
@@ -204,6 +233,26 @@ async def run_product_factory(
                 last_errors = failures2
 
         if not success:
+            if phase_id in SOFT_PHASES:
+                workspace.setdefault("phases", []).append(
+                    {
+                        "id": phase_id,
+                        "label": label,
+                        "status": "passed",
+                        "summary": "skipped (soft)",
+                        "model": "skipped",
+                    }
+                )
+                await emit(
+                    {
+                        "type": "phase_done",
+                        "phase_id": phase_id,
+                        "label": label,
+                        "status": "passed",
+                        "summary": "skipped (soft)",
+                    }
+                )
+                continue
             workspace.setdefault("phases", []).append(
                 {
                     "id": phase_id,
@@ -239,6 +288,71 @@ async def run_product_factory(
 
 class ProductFactoryError(RuntimeError):
     pass
+
+
+async def _run_codegen_phase(
+    *,
+    phase_id: str,
+    workspace: dict[str, Any],
+    name: str,
+    transcript: str,
+    preferred_model: str | None,
+    llm_complete: LLMFn,
+    parse_json: ParseFn,
+    allow_llm: bool,
+) -> tuple[dict[str, Any], str]:
+    """
+    Orchestrate Figma UI / FastAPI backend codegen.
+
+    Order choice (documented):
+      - ui_codegen runs after page_ux (needs IA + design_system + page_specs)
+      - backend_codegen runs after architecture (needs entities/modules; may use
+        generated_frontend file list). Placed before ai_core so invent always
+        completes the AI prompt even if backend stubs are heuristic-only.
+    """
+    if phase_id == "ui_codegen":
+        # Vercel / llm_phases fast path: never burn the budget on vision + Figma.
+        if not allow_llm:
+            return {"generated_frontend": {}, "skipped": True}, "skipped"
+        try:
+            from engines.product_factory.ui_code_generator import generate_frontend_from_figma
+
+            prompt = f"{name}\n{transcript}"[:4000]
+            result = await generate_frontend_from_figma(
+                workspace=workspace,
+                user_prompt=prompt,
+                llm_complete=llm_complete if allow_llm else None,
+                preferred_model=preferred_model,
+                parse_json=parse_json,
+            )
+            if result and isinstance(result.get("generated_frontend"), dict):
+                files = (result["generated_frontend"] or {}).get("files") or {}
+                if files:
+                    return result, "vision"
+        except Exception as e:
+            log.warning("product_factory.ui_codegen_failed", error=str(e))
+        return {"generated_frontend": {}, "skipped": True}, "skipped"
+
+    if phase_id == "backend_codegen":
+        try:
+            from engines.product_factory.backend_code_generator import generate_backend_scaffold
+
+            result = await generate_backend_scaffold(
+                workspace=workspace,
+                llm_complete=llm_complete if allow_llm else None,
+                preferred_model=preferred_model,
+                parse_json=parse_json,
+            )
+            if result and isinstance(result.get("generated_backend"), dict):
+                files = (result["generated_backend"] or {}).get("files") or {}
+                if files:
+                    src = str((result["generated_backend"] or {}).get("source") or "heuristic")
+                    return result, "llm" if src == "llm" else "heuristic"
+        except Exception as e:
+            log.warning("product_factory.backend_codegen_failed", error=str(e))
+        return {"generated_backend": {}, "skipped": True}, "skipped"
+
+    return {}, "skipped"
 
 
 async def _run_specialist(
@@ -312,9 +426,12 @@ def _workspace_brief(workspace: dict[str, Any]) -> dict[str, Any]:
         "design_system": {
             "personality": (workspace.get("design_system") or {}).get("personality"),
             "tokens": (workspace.get("design_system") or {}).get("tokens"),
+            "chrome": (workspace.get("design_system") or {}).get("chrome"),
         },
         "page_spec_ids": list((workspace.get("page_specs") or {}).keys()),
         "architecture": workspace.get("architecture"),
+        "has_generated_frontend": bool((workspace.get("generated_frontend") or {}).get("files")),
+        "has_generated_backend": bool((workspace.get("generated_backend") or {}).get("files")),
     }
 
 
@@ -333,9 +450,18 @@ def _phase_summary(phase_id: str, workspace: dict[str, Any]) -> str:
         return str((workspace.get("design_system") or {}).get("personality") or "")[:80]
     if phase_id == "page_ux":
         return f"{len(workspace.get('page_specs') or {})} page specs"
+    if phase_id == "ui_codegen":
+        files = (workspace.get("generated_frontend") or {}).get("files") or {}
+        if files:
+            return f"{len(files)} frontend files"
+        tmpl = (workspace.get("figma_template") or {}).get("id") or ""
+        return f"skipped{f' (matched {tmpl})' if tmpl else ''}"
     if phase_id == "architecture":
         mods = (workspace.get("architecture") or {}).get("modules") or []
         return f"{len(mods)} modules"
+    if phase_id == "backend_codegen":
+        files = (workspace.get("generated_backend") or {}).get("files") or {}
+        return f"{len(files)} backend files" if files else "skipped"
     if phase_id == "ai_core":
         return str((workspace.get("ai_core") or {}).get("specialty") or "")[:120]
     return phase_id

@@ -102,6 +102,10 @@ def gate_phase(phase_id: str, workspace: dict[str, Any]) -> tuple[bool, list[str
             if nid and nid not in specs and nid not in deferred:
                 failures.append(f"missing page_spec for nav leaf '{nid}'")
 
+    elif phase_id == "ui_codegen":
+        # Soft gate: always pass. Empty generated_frontend means skipped/fallback.
+        pass
+
     elif phase_id == "architecture":
         arch = workspace.get("architecture") or {}
         if not isinstance(arch, dict):
@@ -111,6 +115,10 @@ def gate_phase(phase_id: str, workspace: dict[str, Any]) -> tuple[bool, list[str
                 failures.append("architecture needs modules or entities")
             if not str(arch.get("ai_core_integration") or "").strip():
                 failures.append("architecture needs ai_core_integration")
+
+    elif phase_id == "backend_codegen":
+        # Soft gate: always pass. Missing scaffold is fine when flag/token off.
+        pass
 
     elif phase_id == "ai_core":
         core = workspace.get("ai_core") or {}

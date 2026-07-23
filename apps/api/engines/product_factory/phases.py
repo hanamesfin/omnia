@@ -9,7 +9,11 @@ PHASE_ORDER: list[str] = [
     "ia",
     "design_system",
     "page_ux",
+    # Soft codegen phases: Figma vision UI → FastAPI backend stubs.
+    # Soft-gated — skipped when PRODUCT_FACTORY_FIGMA_CODEGEN is off / no token.
+    "ui_codegen",
     "architecture",
+    "backend_codegen",
     "ai_core",
 ]
 
@@ -20,7 +24,9 @@ PHASE_LABELS: dict[str, str] = {
     "ia": "Information architecture",
     "design_system": "Brand & design system",
     "page_ux": "Page UX specs",
+    "ui_codegen": "Figma UI codegen",
     "architecture": "Technical architecture",
+    "backend_codegen": "Backend scaffold",
     "ai_core": "AI core (prompt & tools)",
 }
 
@@ -32,6 +38,11 @@ PHASE_OUTPUT_KEYS: dict[str, list[str]] = {
     "ia": ["information_architecture"],
     "design_system": ["design_system"],
     "page_ux": ["page_specs"],
+    "ui_codegen": ["generated_frontend", "figma_template"],
     "architecture": ["architecture"],
+    "backend_codegen": ["generated_backend"],
     "ai_core": ["ai_core"],
 }
+
+# Soft phases never hard-fail invent when codegen is skipped.
+SOFT_PHASES: set[str] = {"ui_codegen", "backend_codegen"}

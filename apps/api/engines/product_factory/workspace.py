@@ -24,6 +24,9 @@ def empty_workspace(*, name: str = "", chat_summary: str = "") -> dict[str, Any]
         "page_specs": {},
         "architecture": {},
         "ai_core": {},
+        "figma_template": {},
+        "generated_frontend": {},
+        "generated_backend": {},
         "phases": [],
         "deferred_pages": [],
     }
@@ -104,6 +107,10 @@ def merge_phase_output(workspace: dict[str, Any], phase_id: str, data: dict[str,
                     else True,
                     "nav_placement": str(chrome.get("nav_placement") or "bottom_pill")[:32],
                     "top_bar": str(chrome.get("top_bar") or "centered_brand")[:32],
+                    # Set true when Figma vision codegen produced generated_frontend
+                    "codegen": bool(chrome.get("codegen"))
+                    if "codegen" in chrome
+                    else bool((ws.get("design_system") or {}).get("chrome", {}).get("codegen")),
                 },
                 "tokens": {
                     "colors": colors,
@@ -149,6 +156,48 @@ def merge_phase_output(workspace: dict[str, Any], phase_id: str, data: dict[str,
                 "integrations": list(arch.get("integrations") or [])[:12],
                 "ai_core_integration": str(arch.get("ai_core_integration") or "")[:400],
             }
+
+    if phase_id == "ui_codegen" or "generated_frontend" in data or "figma_template" in data:
+        if isinstance(data.get("figma_template"), dict) and data["figma_template"]:
+            ws["figma_template"] = dict(data["figma_template"])
+        fe = data.get("generated_frontend")
+        if isinstance(fe, dict):
+            files = fe.get("files") if isinstance(fe.get("files"), dict) else {}
+            if files:
+                ws["generated_frontend"] = {
+                    "files": {str(k)[:200]: str(v)[:120_000] for k, v in list(files.items())[:24]},
+                    "source": dict(fe.get("source") or {}) if isinstance(fe.get("source"), dict) else {},
+                }
+                # Mark chrome for downstream web renderers
+                ds = ws.get("design_system") if isinstance(ws.get("design_system"), dict) else {}
+                chrome = dict(ds.get("chrome") or {})
+                chrome["codegen"] = True
+                ds = dict(ds)
+                ds["chrome"] = chrome
+                ws["design_system"] = ds
+        # Partial chrome.codegen from ui_codegen payload without full design_system rewrite
+        if isinstance(data.get("design_system"), dict):
+            incoming_chrome = (data["design_system"].get("chrome") or {}) if isinstance(
+                data["design_system"].get("chrome"), dict
+            ) else {}
+            if incoming_chrome.get("codegen"):
+                ds = ws.get("design_system") if isinstance(ws.get("design_system"), dict) else {}
+                chrome = dict(ds.get("chrome") or {})
+                chrome["codegen"] = True
+                ds = dict(ds)
+                ds["chrome"] = chrome
+                ws["design_system"] = ds
+
+    if phase_id == "backend_codegen" or "generated_backend" in data:
+        be = data.get("generated_backend")
+        if isinstance(be, dict):
+            files = be.get("files") if isinstance(be.get("files"), dict) else {}
+            if files:
+                ws["generated_backend"] = {
+                    "files": {str(k)[:200]: str(v)[:80_000] for k, v in list(files.items())[:20]},
+                    "framework": str(be.get("framework") or "fastapi")[:32],
+                    "source": str(be.get("source") or "")[:40],
+                }
 
     if phase_id == "ai_core" or "ai_core" in data or "system_prompt" in data:
         core = data.get("ai_core") if isinstance(data.get("ai_core"), dict) else data
@@ -225,7 +274,7 @@ def _normalize_nav(nav: list[Any]) -> list[dict[str, str]]:
 
 
 def to_product_blueprint(workspace: dict[str, Any]) -> dict[str, Any]:
-    return {
+    bp: dict[str, Any] = {
         "product_type": workspace.get("product_type") or "",
         "platform": workspace.get("platform") or "web",
         "ai_core_role": workspace.get("ai_core_role") or "",
@@ -241,3 +290,13 @@ def to_product_blueprint(workspace: dict[str, Any]) -> dict[str, Any]:
         "deferred_pages": list(workspace.get("deferred_pages") or []),
         "phases": list(workspace.get("phases") or []),
     }
+    # Optional full-stack codegen artifacts for web / export consumers
+    if workspace.get("figma_template"):
+        bp["figma_template"] = dict(workspace["figma_template"])
+    fe = workspace.get("generated_frontend") or {}
+    if isinstance(fe, dict) and fe.get("files"):
+        bp["generated_frontend"] = dict(fe)
+    be = workspace.get("generated_backend") or {}
+    if isinstance(be, dict) and be.get("files"):
+        bp["generated_backend"] = dict(be)
+    return bp

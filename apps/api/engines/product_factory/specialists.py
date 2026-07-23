@@ -78,6 +78,9 @@ def heuristic_phase(phase_id: str, workspace: dict[str, Any], *, name: str, tran
                 "accessibility": "Keyboard navigable; labeled controls",
             }
         return {"page_specs": specs}
+    if phase_id == "ui_codegen":
+        # Soft skip — real work is in ui_code_generator when flag + Figma available
+        return {"generated_frontend": {}, "skipped": True}
     if phase_id == "architecture":
         return {
             "architecture": {
@@ -87,6 +90,8 @@ def heuristic_phase(phase_id: str, workspace: dict[str, Any], *, name: str, tran
                 "ai_core_integration": family["ai_integration"],
             }
         }
+    if phase_id == "backend_codegen":
+        return {"generated_backend": {}, "skipped": True}
     if phase_id == "ai_core":
         return {
             "ai_core": {

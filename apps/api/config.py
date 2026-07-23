@@ -100,6 +100,12 @@ class Settings(BaseSettings):
     # ─── Product Factory (Create invent pipeline) ───────────────────────────
     # When true, Create invents a full product blueprint (IA/nav/design) before AI core.
     PRODUCT_FACTORY: bool = True
+    # Opt-in Figma match → vision React codegen → FastAPI scaffold.
+    # Default off so Vercel Hobby invent stays within time limits; when on, missing
+    # FIGMA_ACCESS_TOKEN / vision LLM gracefully falls back to page_ux heuristics.
+    PRODUCT_FACTORY_FIGMA_CODEGEN: bool = False
+    # Figma personal access token (X-Figma-Token). Never commit a real value.
+    FIGMA_ACCESS_TOKEN: str = ""
 
 
 settings = Settings()
