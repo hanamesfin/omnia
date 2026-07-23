@@ -79,17 +79,39 @@ def merge_phase_output(workspace: dict[str, Any], phase_id: str, data: dict[str,
         ds = data.get("design_system") if isinstance(data.get("design_system"), dict) else data
         if isinstance(ds, dict):
             tokens = ds.get("tokens") if isinstance(ds.get("tokens"), dict) else {}
+            chrome = ds.get("chrome") if isinstance(ds.get("chrome"), dict) else {}
+            typo = dict(tokens.get("typography") or ds.get("typography") or {})
+            # Collections-App defaults when specialist omits type stack
+            typo.setdefault("font_display", "Platypi")
+            typo.setdefault("font_sans", "Host Grotesk")
+            typo.setdefault("font_mono", "IBM Plex Mono")
+            colors = dict(tokens.get("colors") or ds.get("colors") or {})
+            colors.setdefault("bg", "#f4f4f4")
+            colors.setdefault("fg", "#000000")
+            colors.setdefault("accent", colors.get("fg") or "#000000")
+            colors.setdefault("muted", "#999999")
+            colors.setdefault("border", "rgba(0,0,0,0.1)")
+            colors.setdefault("surface", "#ffffff")
             ws["design_system"] = {
                 "personality": str(ds.get("personality") or "")[:80],
                 "emotional_goals": list(ds.get("emotional_goals") or [])[:6],
                 "references": list(ds.get("references") or [])[:6],
+                "chrome": {
+                    "mode": str(chrome.get("mode") or "standalone")[:32],
+                    "omnia_shell": bool(chrome.get("omnia_shell")) if "omnia_shell" in chrome else False,
+                    "product_nav_only": bool(chrome.get("product_nav_only"))
+                    if "product_nav_only" in chrome
+                    else True,
+                    "nav_placement": str(chrome.get("nav_placement") or "bottom_pill")[:32],
+                    "top_bar": str(chrome.get("top_bar") or "centered_brand")[:32],
+                },
                 "tokens": {
-                    "colors": dict(tokens.get("colors") or ds.get("colors") or {}),
-                    "typography": dict(tokens.get("typography") or ds.get("typography") or {}),
+                    "colors": colors,
+                    "typography": typo,
                     "spacing": dict(tokens.get("spacing") or ds.get("spacing") or {}),
-                    "radius": str(tokens.get("radius") or ds.get("radius") or "0.75rem"),
+                    "radius": str(tokens.get("radius") or ds.get("radius") or "12px"),
                     "motion": dict(tokens.get("motion") or ds.get("motion") or {}),
-                    "shadow": str(tokens.get("shadow") or ds.get("shadow") or "none"),
+                    "shadow": str(tokens.get("shadow") or ds.get("shadow") or "frosted pill"),
                 },
             }
 

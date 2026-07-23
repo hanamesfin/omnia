@@ -1519,6 +1519,17 @@ _SEED_CATALOG: list[tuple[str, str, str, str, str, float, int, float, str]] = [
     ("agent-seed-pr-reviewer", "PR Reviewer", "Diff in — risk, clarity, and missing tests out.", "coding", "tool", 0.0, 0, 0.0, "OMNIA Labs"),
     ("agent-seed-inbox-sorter", "Inbox Sorter", "Rules-based labeling for recurring message batches.", "customer_support", "automation", 0.0, 0, 0.0, "Queuekit"),
     ("agent-seed-meeting-notes", "Meeting Notes Cleaner", "Raw transcript → action items and decisions.", "content", "transformer", 0.0, 0, 0.0, "Writeform"),
+    (
+        "agent-seed-trove",
+        "Trove",
+        "Collect, organize, and browse artworks, quotes, and publications — with an AI curator.",
+        "content",
+        "chat",
+        0.0,
+        0,
+        0.0,
+        "OMNIA Labs",
+    ),
 ]
 
 
@@ -1907,6 +1918,11 @@ def _upsert_seed_agent(
             )
             agent["dna"] = dna.to_dict()
             agent["tools"] = dna.tools
+        if name == "Trove":
+            bp = agent.get("product_blueprint") or {}
+            if not isinstance(bp, dict) or bp.get("product_type") != "Collections App":
+                agent["product_blueprint"] = _trove_product_blueprint()
+                agent["interface_schema"] = {"mode": "chat", "input_fields": []}
         lid = f"listing-{aid}"
         if lid not in STORE["listings"]:
             STORE["listings"][lid] = {
@@ -1923,6 +1939,7 @@ def _upsert_seed_agent(
 
     is_omni = name == "OMNIA Omni"
     is_guide = name == "Guide"
+    is_trove = name == "Trove"
     if is_guide:
         prompt = _GUIDE_PROMPT
         tools = ["web_search"]
@@ -1930,6 +1947,23 @@ def _upsert_seed_agent(
         model = "gpt-4o-mini"
         tier = "specialist"
         caps = ["Onboarding", "Create walkthrough", "Discover tips"]
+    elif is_trove:
+        prompt = _deterministic_prompt(
+            role="Trove curator — help users collect, organize, and browse personal collections of artworks, quotes, and publications",
+            domain=domain,
+            tone="calm, curated, and lightly editorial",
+            tools=["web_search"],
+            memory="session",
+            constraints=[
+                "Stay focused on collecting, organizing, and discovering cultural content",
+                "Never invent citations or provenance",
+            ],
+        )
+        tools = ["web_search"]
+        memory = "session"
+        model = "gpt-4o-mini"
+        tier = "specialist"
+        caps = ["Curate collections", "Tag & group saves", "Suggest what to collect"]
     elif is_omni:
         prompt = frontier_prompt(
             role="Frontier Omni Assistant",
@@ -2011,7 +2045,10 @@ def _upsert_seed_agent(
         "created_at": _now(),
         "version_history": [],
     }
-    if name in ("Guide", "Bug Triage", "Tone-Safe Support", "OMNIA Omni"):
+    if is_trove:
+        STORE["agents"][aid]["product_blueprint"] = _trove_product_blueprint()
+        STORE["agents"][aid]["interface_schema"] = {"mode": "chat", "input_fields": []}
+    if name in ("Guide", "Bug Triage", "Tone-Safe Support", "OMNIA Omni", "Trove"):
         lib = STORE["library"].setdefault(user_id, [])
         if not any(e.get("agent_id") == aid for e in lib):
             lib.append({"agent_id": aid, "source": "created"})
@@ -2027,6 +2064,120 @@ def _upsert_seed_agent(
             "wilson_score": wilson_score(0, 0),
             "published_at": _now(),
         }
+
+
+def _trove_product_blueprint() -> dict:
+    """Canonical Collections / Trove blank-canvas product (Figma Make Collections-App)."""
+    return {
+        "product_type": "Collections App",
+        "uvp": "Collect, organize, and browse artworks, quotes, and publications with a calm curated canvas.",
+        "daily_workflow": "Browse My Trove, open or create collections, search saves, and ask the AI curator for help.",
+        "information_architecture": {
+            "pages": [
+                {
+                    "id": "home",
+                    "label": "Home",
+                    "description": "Masonry feed of artworks, quotes, and publications.",
+                },
+                {
+                    "id": "collections",
+                    "label": "Collections",
+                    "description": "Browse and create curated collections.",
+                },
+                {
+                    "id": "search",
+                    "label": "Search",
+                    "description": "Find saved items across collections.",
+                },
+                {
+                    "id": "assistant",
+                    "label": "Curator",
+                    "ai_powered": True,
+                    "description": "AI curator for tagging, grouping, and discovery ideas.",
+                },
+            ],
+            "nav": [
+                {"id": "home", "label": "Home"},
+                {"id": "collections", "label": "Collections"},
+                {"id": "search", "label": "Search"},
+                {"id": "assistant", "label": "Curator"},
+            ],
+        },
+        "design_system": {
+            "personality": "curated_calm",
+            "emotional_goals": ["calm", "clarity", "focus"],
+            "references": [
+                "Collections App / Trove",
+                "Recent (Godly) — quiet chrome, content-first masonry",
+                "Siteinspire — save to collection browse",
+                "Mobbin / Pinterest — save-to-board sheet",
+            ],
+            "chrome": {
+                "mode": "standalone",
+                "omnia_shell": False,
+                "product_nav_only": True,
+                "nav_placement": "bottom_pill",
+                "top_bar": "centered_brand",
+            },
+            "tokens": {
+                "colors": {
+                    "bg": "#f4f4f4",
+                    "fg": "#000000",
+                    "accent": "#000000",
+                    "muted": "#999999",
+                    "border": "rgba(0,0,0,0.1)",
+                    "surface": "#ffffff",
+                },
+                "typography": {
+                    "font_display": "Platypi",
+                    "font_sans": "Host Grotesk",
+                    "font_mono": "IBM Plex Mono",
+                },
+                "space": {
+                    "unit": "4px",
+                    "gutter": "20px",
+                    "section": "2.5rem",
+                    "nav_pad": "34px",
+                },
+                "radius": {
+                    "media": "6px",
+                    "card": "12px",
+                    "pill": "999px",
+                    "control": "0.625rem",
+                },
+                "motion": {
+                    "enter": "fade-up 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    "micro": "140ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    "spring": "spring 420/38",
+                    "emphasis": "nav-pill layout spring",
+                },
+            },
+        },
+        "page_specs": {
+            "home": {
+                "purpose": "Scan your personal trove in a two-column masonry.",
+                "primary_actions": ["Open item", "Filter by type"],
+                "empty_state": "Your trove is empty — start collecting.",
+                "loading_state": "Gathering your saves…",
+            },
+            "collections": {
+                "purpose": "Open a collection or start a new one.",
+                "primary_actions": ["New collection", "Open collection"],
+                "empty_state": "No collections yet — tap + to create one.",
+            },
+            "search": {
+                "purpose": "Search everything you've saved.",
+                "primary_actions": ["Search", "Filter"],
+                "empty_state": "No matching saves yet.",
+            },
+            "assistant": {
+                "purpose": "Ask the curator to group, tag, or suggest collections.",
+                "ai_powered": True,
+                "empty_state": "Ask the curator for grouping ideas or what to collect next.",
+                "primary_actions": ["Suggest collection", "Tag this item"],
+            },
+        },
+    }
 
 
 def _apply_rating_aggregates(agent: dict[str, Any], listing: dict[str, Any] | None) -> None:

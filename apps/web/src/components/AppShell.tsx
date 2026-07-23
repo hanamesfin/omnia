@@ -4,6 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/appearance-prefs";
 import { isPublicPath } from "@/lib/auth-session";
 
+/** Persisted closed desktop rail — survives refresh. */
 const SIDEBAR_HIDDEN_KEY = "omnia-sidebar-hidden";
 
 const AppSidebar = dynamic(
@@ -53,6 +55,14 @@ function isCreateStudioPath(pathname: string) {
   return pathname === "/create" || pathname.startsWith("/create/");
 }
 
+/**
+ * Live product agents (`/app/...`) are blank-canvas apps:
+ * AuthGate only — no OMNIA sidebar, hamburger, or Discover/Create/Yours chrome.
+ */
+function isProductAppPath(pathname: string) {
+  return pathname === "/app" || pathname.startsWith("/app/");
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || "";
   const gated = (
@@ -62,8 +72,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
     >
       <AuthGate>
-        {isGateChromePath(pathname) ? (
-          <main id="main" className="h-screen overflow-y-auto bg-field">
+        {isGateChromePath(pathname) || isProductAppPath(pathname) ? (
+          <main
+            id="main"
+            className={
+              isProductAppPath(pathname)
+                ? "h-dvh min-h-0 w-full overflow-hidden"
+                : "h-screen overflow-y-auto bg-field"
+            }
+          >
             {children}
           </main>
         ) : (
@@ -78,13 +95,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 /**
- * Single overlay shell: one relative host, stacked layers.
- * - Main is always absolute inset-0 (full-bleed) — never a flex sibling that
- *   shrinks for a sidebar column.
- * - Menu symbol (hamburger / PanelLeft) floats over main top-left by default,
- *   or portals into a page dock (Discover / Yours / Create content column).
- * - Desktop rail + mobile drawer are absolute/fixed overlays on the same host.
- * - `overlayMenuOnly` (Create): hamburger + drawer at all breakpoints; no push rail.
+ * Main app chrome:
+ * - Desktop (`lg+`): **push** sidebar — width animates to 0; main reflows to fill.
+ * - Mobile / Create: overlay drawer (hamburger).
+ * - Menu symbol docks into page content via ShellMenuAnchor when present.
  */
 function AppShellChrome({
   children,
@@ -119,13 +133,14 @@ function AppShellChromeInner({
     reduceMotion,
   } = useAppearance();
   const { dockEl } = useShellMenuDock();
+  const sidebarDomId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
+  /** Desktop push rail closed (persisted). */
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  /** Below `lg`: floating hamburger always shown — main needs chrome pad when undocked. */
   const [isNarrow, setIsNarrow] = useState(true);
   const close = useCallback(() => setMenuOpen(false), []);
-  const toggle = useCallback(() => setMenuOpen((v) => !v), []);
+  const toggleMobile = useCallback(() => setMenuOpen((v) => !v), []);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const menuDocked = Boolean(dockEl);
@@ -175,12 +190,10 @@ function AppShellChromeInner({
     if (!autoHide) setPeekOpen(false);
   }, [autoHide]);
 
-  /** Track `lg` breakpoint: close drawer on desktop; drive chrome pad on mobile. */
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const onChange = () => {
       setIsNarrow(!mq.matches);
-      // Create overlay menu stays available on desktop — don't force-close on widen.
       if (mq.matches && !overlayMenuOnly) setMenuOpen(false);
     };
     onChange();
@@ -221,19 +234,22 @@ function AppShellChromeInner({
     window.addEventListener("pointercancel", onUp);
   };
 
-  const showDesktopRail =
-    !overlayMenuOnly && !sidebarHidden && (!autoHide || peekOpen);
   /**
-   * Compact floating PanelLeft — desktop when the rail content is not visible
-   * (fully hidden, or auto-hide parked off-screen). Never a full-height control.
+   * Desktop push open: rail participates in flex width.
+   * Auto-hide parks at width 0 until peek; pinned uses sidebarHidden.
    */
+  const desktopRailOpen =
+    !overlayMenuOnly && !sidebarHidden && (!autoHide || peekOpen);
   const showDesktopRestore =
     !overlayMenuOnly && (sidebarHidden || (autoHide && !peekOpen));
-  /**
-   * Pad main only when a viewport-floating toggle occupies the shell top-left.
-   * When a page docks the symbol into its content column (Discover, Yours, Create),
-   * skip left chrome-pad so we don’t double-offset beside max-w-* padding.
-   */
+
+  /** Closed push rail: skip keyboard tab into hidden links. */
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    el.inert = !desktopRailOpen;
+  }, [desktopRailOpen]);
+
   const needsChromePad =
     !menuDocked && (overlayMenuOnly || isNarrow || showDesktopRestore);
   const showMenuSymbol = overlayMenuOnly
@@ -241,12 +257,11 @@ function AppShellChromeInner({
     : (isNarrow && !menuOpen) || showDesktopRestore;
   const transitionClass = reduceMotion
     ? ""
-    : "transition-[width,transform,opacity] duration-300 ease-spring";
+    : "transition-[width] duration-300 ease-spring";
 
   const revealDesktopSidebar = useCallback(() => {
     if (sidebarHidden) {
       setHidden(false);
-      // If pin is auto-hide, also peek so the rail actually appears.
       if (sidebarPin === "auto-hide") {
         clearHide();
         setPeekOpen(true);
@@ -258,6 +273,18 @@ function AppShellChromeInner({
       setPeekOpen(true);
     }
   }, [autoHide, setHidden, sidebarHidden, sidebarPin]);
+
+  const toggleDesktop = useCallback(() => {
+    if (desktopRailOpen) {
+      if (autoHide) {
+        setPeekOpen(false);
+        return;
+      }
+      setHidden(true);
+      return;
+    }
+    revealDesktopSidebar();
+  }, [autoHide, desktopRailOpen, revealDesktopSidebar, setHidden]);
 
   const menuSymbol = showMenuSymbol ? (
     <div
@@ -275,7 +302,8 @@ function AppShellChromeInner({
         >
           <SidebarToggle
             open={menuOpen}
-            onToggle={toggle}
+            onToggle={toggleMobile}
+            controlsId={sidebarDomId}
             alwaysVisible={overlayMenuOnly}
           />
         </div>
@@ -283,9 +311,10 @@ function AppShellChromeInner({
       {showDesktopRestore && (
         <button
           type="button"
-          onClick={revealDesktopSidebar}
+          onClick={toggleDesktop}
           className="app-store-menu-toggle pointer-events-auto hidden h-11 w-11 min-h-tap min-w-tap max-h-11 max-w-11 shrink-0 grow-0 basis-11 items-center justify-center self-start rounded-xl text-foreground shadow-soft lg:inline-flex"
-          aria-expanded={false}
+          aria-expanded={desktopRailOpen}
+          aria-controls={sidebarDomId}
           aria-label={t("shell.showSidebar")}
           title={t("shell.showSidebar")}
         >
@@ -297,56 +326,25 @@ function AppShellChromeInner({
 
   return (
     <div
-      className="app-shell relative isolate h-dvh w-full overflow-hidden bg-field"
-      data-shell="overlay"
+      className="app-shell relative isolate flex h-dvh w-full overflow-hidden bg-field"
+      data-shell="push"
       data-shell-overlay-menu={overlayMenuOnly ? "1" : undefined}
     >
-      {/* Layer 0 — full-bleed main (never reserves sidebar width) */}
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--shell-chrome-pad)] focus:top-4 focus:z-[60] focus:rounded-full focus:bg-alive focus:px-3 focus:py-2 focus:text-on-alive focus:outline-none"
       >
         {t("shell.skip")}
       </a>
-      <main
-        id="main"
-        data-chrome-pad={needsChromePad ? "1" : "0"}
-        className="app-store-main absolute inset-0 min-h-0 min-w-0 overflow-y-auto"
-      >
-        {children}
-      </main>
 
-      {/* Layer 1 — menu symbol: docked into page chrome, else floats over main */}
-      {menuSymbol &&
-        (menuDocked && dockEl
-          ? createPortal(menuSymbol, dockEl)
-          : !menuDocked
-            ? menuSymbol
-            : null)}
-
-      {/* Invisible auto-hide edge hit-area only — never an icon / visible bar. */}
-      {!overlayMenuOnly && autoHide && !peekOpen && !sidebarHidden && (
-        <div
-          role="presentation"
-          aria-hidden
-          className="app-shell-peek-edge absolute inset-y-0 left-0 z-[90] hidden lg:block"
-          onMouseEnter={() => {
-            clearHide();
-            setPeekOpen(true);
-          }}
-        />
-      )}
-
-      {/* Layer 2 — desktop rail overlay (does not participate in layout width) */}
+      {/* Desktop push rail — width → 0 collapses; main flexes to fill */}
       {!overlayMenuOnly && (
         <div
           ref={railRef}
-          className={`absolute inset-y-0 left-0 z-[80] hidden h-full min-h-0 overflow-hidden lg:flex ${transitionClass} ${
-            showDesktopRail ? "pointer-events-auto" : "pointer-events-none"
-          }`}
-          style={{
-            width: showDesktopRail ? railWidth : 0,
-          }}
+          id={sidebarDomId}
+          className={`relative hidden h-full min-h-0 shrink-0 overflow-hidden lg:flex ${transitionClass}`}
+          style={{ width: desktopRailOpen ? railWidth : 0 }}
+          aria-hidden={!desktopRailOpen}
           onMouseEnter={() => {
             if (autoHide) {
               clearHide();
@@ -369,16 +367,12 @@ function AppShellChromeInner({
             scheduleHide();
           }}
         >
-          {!sidebarHidden && (
-            <div
-              className={`flex h-full min-h-0 ${transitionClass} ${
-                showDesktopRail ? "opacity-100" : "pointer-events-none opacity-0"
-              }`}
-              style={{
-                width: railWidth,
-                transform: autoHide && !peekOpen ? "translateX(-100%)" : "translateX(0)",
-              }}
-            >
+          {/* Fixed inner width so content doesn’t squash while the host animates */}
+          <div
+            className="relative flex h-full min-h-0 shrink-0"
+            style={{ width: railWidth }}
+          >
+            {!sidebarHidden && (
               <AppSidebar
                 open
                 persistent
@@ -387,27 +381,57 @@ function AppShellChromeInner({
                 onClose={close}
                 onHide={() => setHidden(true)}
               />
-            </div>
-          )}
-
-          {!collapsed && !autoHide && !sidebarHidden && (
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize sidebar"
-              tabIndex={0}
-              onPointerDown={onResizeStart}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowLeft") setSidebarWidth(clampSidebarWidth(sidebarWidth - 8));
-                if (e.key === "ArrowRight") setSidebarWidth(clampSidebarWidth(sidebarWidth + 8));
-              }}
-              className="absolute inset-y-0 right-0 z-[85] w-1.5 cursor-col-resize touch-none hover:bg-accent/25 active:bg-accent/40"
-            />
-          )}
+            )}
+            {!collapsed && !autoHide && !sidebarHidden && (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize sidebar"
+                tabIndex={desktopRailOpen ? 0 : -1}
+                onPointerDown={onResizeStart}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowLeft") setSidebarWidth(clampSidebarWidth(sidebarWidth - 8));
+                  if (e.key === "ArrowRight") setSidebarWidth(clampSidebarWidth(sidebarWidth + 8));
+                }}
+                className="absolute inset-y-0 right-0 z-[5] w-1.5 cursor-col-resize touch-none hover:bg-accent/25 active:bg-accent/40"
+              />
+            )}
+          </div>
         </div>
       )}
 
-      {/* Layer 3 — overlay drawer; on Create available at all breakpoints */}
+      {/* Invisible auto-hide edge — reveal push rail without a visible bar */}
+      {!overlayMenuOnly && autoHide && !peekOpen && !sidebarHidden && (
+        <div
+          role="presentation"
+          aria-hidden
+          className="app-shell-peek-edge absolute inset-y-0 left-0 z-[90] hidden lg:block"
+          onMouseEnter={() => {
+            clearHide();
+            setPeekOpen(true);
+          }}
+        />
+      )}
+
+      {/* Main column — grows when sidebar width is 0 */}
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <main
+          id="main"
+          data-chrome-pad={needsChromePad ? "1" : "0"}
+          className="app-store-main min-h-0 min-w-0 flex-1 overflow-y-auto"
+        >
+          {children}
+        </main>
+
+        {menuSymbol &&
+          (menuDocked && dockEl
+            ? createPortal(menuSymbol, dockEl)
+            : !menuDocked
+              ? menuSymbol
+              : null)}
+      </div>
+
+      {/* Mobile / Create overlay drawer */}
       <div
         className={
           overlayMenuOnly

@@ -91,6 +91,13 @@ export default function RootLayout({
       <head>
         <link rel="dns-prefetch" href={apiOrigin} />
         <link rel="preconnect" href={apiOrigin} crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Collections-App product shell defaults (Platypi / Host Grotesk / IBM Plex Mono) */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Platypi:ital,wght@0,300..800;1,300..800&family=IBM+Plex+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap"
+        />
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/opendyslexic@0.91.12/opendyslexic.min.css"

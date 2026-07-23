@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { DesignTokenProvider, type DesignSystem } from "@/components/DesignTokenProvider";
+import { resolveProductDesignSystem } from "@/lib/product-design-defaults";
+import { productNavIcon } from "@/lib/product-nav-icon";
 
 export type ProductPage = {
   id: string;
@@ -76,54 +78,47 @@ export function ProductShell({ blueprint, productName, aiSurface, header }: Prop
     Boolean(activeSpec?.ai_powered) ||
     (active && /assistant|chat|coach|lab|prep/i.test(active.id + (active.label || "")));
 
-  const ds = blueprint.design_system;
+  const ds = useMemo(
+    () => resolveProductDesignSystem(blueprint.design_system),
+    [blueprint.design_system]
+  );
 
   return (
-    <DesignTokenProvider designSystem={ds} className="flex min-h-[60vh] flex-col overflow-hidden rounded-[1.35rem] lg:min-h-[calc(100vh-14rem)]">
+    <DesignTokenProvider
+      designSystem={ds}
+      className="product-app flex min-h-[60vh] flex-col overflow-hidden rounded-[1.35rem] lg:min-h-[calc(100vh-14rem)]"
+    >
       {header}
-      <div className="flex flex-1 flex-col overflow-hidden sm:flex-row">
-        <nav
-          aria-label="Product navigation"
-          className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-52 sm:flex-col sm:overflow-y-auto sm:border-b-0 sm:border-r"
-          style={{
-            borderColor: "var(--pf-border, color-mix(in oklab, var(--pf-fg, currentColor) 12%, transparent))",
-            background: "var(--pf-surface, color-mix(in oklab, var(--pf-bg, transparent) 85%, black))",
-          }}
-        >
-          {pages.map((p) => {
-            const on = p.id === active?.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setActiveId(p.id)}
-                className="min-h-tap whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition sm:w-full"
-                style={{
-                  background: on ? "color-mix(in oklab, var(--pf-accent, #0d9488) 18%, transparent)" : "transparent",
-                  color: on ? "var(--pf-accent, inherit)" : "var(--pf-muted, inherit)",
-                  fontFamily: "var(--pf-font-display, inherit)",
-                }}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div
-            className="border-b px-4 py-3 sm:px-5"
-            style={{
-              borderColor: "var(--pf-border, color-mix(in oklab, var(--pf-fg, currentColor) 12%, transparent))",
-            }}
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        <div className="product-app-topbar relative flex h-14 shrink-0 items-center justify-center px-5">
+          <p
+            className="truncate text-[15px] font-medium tracking-[-0.02em]"
+            style={{ fontFamily: "var(--pf-font-display, inherit)" }}
           >
+            {productName}
+          </p>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-24">
+          <div className="flex shrink-0 flex-col items-center px-5 pb-4 pt-1 text-center">
             <h2
-              className="text-lg font-semibold tracking-tight"
-              style={{ fontFamily: "var(--pf-font-display, inherit)" }}
+              className="product-app-title tracking-[-0.03em]"
+              style={{
+                fontFamily: "var(--pf-font-display, inherit)",
+                fontWeight: 300,
+                fontSize: "clamp(1.5rem, 4vw, 2.25rem)",
+                lineHeight: 1.2,
+              }}
             >
               {active?.label || productName}
             </h2>
-            <p className="mt-0.5 text-xs" style={{ color: "var(--pf-muted, inherit)" }}>
+            <p
+              className="product-app-meta mt-2 max-w-md"
+              style={{
+                color: "var(--pf-muted, #999)",
+                fontFamily: "var(--pf-font-mono, inherit)",
+              }}
+            >
               {activeSpec?.purpose ||
                 active?.description ||
                 blueprint.uvp ||
@@ -132,7 +127,7 @@ export function ProductShell({ blueprint, productName, aiSurface, header }: Prop
             </p>
           </div>
 
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {isAi ? (
               aiSurface
             ) : (
@@ -144,6 +139,39 @@ export function ProductShell({ blueprint, productName, aiSurface, header }: Prop
             )}
           </div>
         </div>
+
+        <nav
+          aria-label="Product navigation"
+          className="product-app-bottom-nav pointer-events-none absolute bottom-0 left-0 z-10 flex w-full justify-center px-2.5 pb-4"
+        >
+          <div className="product-app-nav-pill pointer-events-auto flex max-w-full items-center gap-6 overflow-x-auto p-2">
+            {pages.map((p) => {
+              const on = p.id === active?.id;
+              const Icon = productNavIcon(p.id, String(p.label || p.id));
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setActiveId(p.id)}
+                  className="product-app-nav-item relative flex size-[50px] shrink-0 items-center justify-center rounded-full transition active:scale-90"
+                  aria-current={on ? "page" : undefined}
+                  title={String(p.label)}
+                >
+                  {on ? (
+                    <span className="product-app-nav-active absolute inset-0 rounded-full" aria-hidden />
+                  ) : null}
+                  <Icon
+                    className="relative z-10"
+                    size={16}
+                    strokeWidth={1.75}
+                    color={on ? "var(--pf-bg, #f4f4f4)" : "rgba(255,255,255,0.95)"}
+                    aria-hidden
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       </div>
     </DesignTokenProvider>
   );
@@ -160,32 +188,36 @@ function PlaceholderPage({
 }) {
   const actions = Array.isArray(spec?.primary_actions) ? spec.primary_actions : [];
   return (
-    <div className="flex flex-1 flex-col items-start justify-center gap-4 p-6 sm:p-8">
-      <p className="max-w-md text-sm leading-relaxed" style={{ color: "var(--pf-muted, inherit)" }}>
-        {spec?.empty_state ||
-          `${pageLabel} is part of ${productName}'s workflow. Connect data or open an AI-powered page to get started.`}
-      </p>
-      {actions.length > 0 ? (
-        <ul className="flex flex-wrap gap-2">
-          {actions.map((a) => (
-            <li
-              key={a}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium"
-              style={{
-                background: "color-mix(in oklab, var(--pf-accent, #0d9488) 12%, transparent)",
-                color: "var(--pf-accent, inherit)",
-              }}
-            >
-              {a}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {spec?.a11y_notes ? (
-        <p className="text-[11px]" style={{ color: "var(--pf-muted, inherit)" }}>
-          A11y: {spec.a11y_notes}
+    <div className="flex flex-1 flex-col items-center gap-4 overflow-y-auto px-5 pb-4">
+      <div className="product-app-card w-full max-w-lg px-6 py-7 text-center">
+        <p
+          className="text-[13px] leading-snug tracking-[-0.03em]"
+          style={{ fontFamily: "var(--pf-font-display, inherit)" }}
+        >
+          {spec?.empty_state ||
+            `${pageLabel} is part of ${productName}'s workflow. Connect data or open an AI-powered page to get started.`}
         </p>
-      ) : null}
+        {actions.length > 0 ? (
+          <ul className="mt-5 flex flex-wrap justify-center gap-2">
+            {actions.map((a) => (
+              <li key={a} className="product-app-btn-primary rounded-full px-3 py-1.5 text-[12px] font-medium">
+                {a}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {spec?.a11y_notes ? (
+          <p
+            className="mt-4 text-[10px]"
+            style={{
+              color: "var(--pf-muted, #999)",
+              fontFamily: "var(--pf-font-mono, inherit)",
+            }}
+          >
+            A11y: {spec.a11y_notes}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

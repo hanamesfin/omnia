@@ -976,3 +976,167 @@ html[data-reduce-motion="true"] *::after {
   padding-left: 0;
   scroll-padding-left: 0;
 }
+
+/*
+  Product apps (/app/*) — Collections-App (Figma Make) chrome.
+  Soft gray canvas, centered brand, floating frosted bottom pill nav.
+  Standalone: never inherits OMNIA sidebar / hamburger chrome.
+*/
+.product-app {
+  position: relative;
+  isolation: isolate;
+  background: var(--pf-bg, #f4f4f4);
+  color: var(--pf-fg, #000);
+  font-family: var(--pf-font-body, "Host Grotesk", system-ui, sans-serif);
+}
+
+.product-app-title {
+  font-size: clamp(1.75rem, 6vw, 3.125rem);
+}
+
+.product-app-meta {
+  font-size: 12px;
+}
+
+.product-app-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.product-app-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.product-app-card {
+  background: var(--pf-surface, #fff);
+  border-radius: var(--pf-radius-card, 12px);
+  animation: product-app-fade-up 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.product-app-media {
+  border-radius: var(--pf-radius-media, 6px);
+  overflow: hidden;
+}
+
+.product-app-card-lift {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .product-app-card-lift:hover {
+    transform: translateY(-2px);
+  }
+  .product-app-save-chip {
+    opacity: 0;
+    transition: opacity 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .product-app-card-lift:hover .product-app-save-chip,
+  .product-app-card-lift:focus-within .product-app-save-chip {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .product-app-save-chip {
+    opacity: 1;
+  }
+}
+
+.product-app-btn-primary {
+  background: var(--pf-fg, #000);
+  color: var(--pf-bg, #f4f4f4);
+  font-family: var(--pf-font-mono, inherit);
+}
+
+.product-app-nav-pill {
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 21px rgba(0, 0, 0, 0.25);
+}
+
+.product-app-nav-active {
+  background: var(--pf-fg, #000);
+}
+
+/* Horizontal mono filter row + ink underline (Collections FilterBar) */
+.product-app-filter {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.product-app-filter-item {
+  position: relative;
+  padding-bottom: 6px;
+  font-family: var(--pf-font-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: -0.02em;
+  color: var(--pf-fg, #000);
+  opacity: 0.4;
+  transition: opacity 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.product-app-filter-item[aria-pressed="true"],
+.product-app-filter-item[data-active="true"] {
+  opacity: 1;
+}
+.product-app-filter-item[aria-pressed="true"]::after,
+.product-app-filter-item[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1.5px;
+  border-radius: 999px;
+  background: var(--pf-fg, #000);
+}
+
+.product-app-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.06) 0%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: product-app-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes product-app-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes product-app-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-app-card {
+    animation: none;
+  }
+  .product-app-skeleton {
+    animation: none;
+  }
+  .product-app-bottom-nav a,
+  .product-app-nav-item {
+    transition: none;
+  }
+}

@@ -21,6 +21,8 @@ const PUBLIC_EXACT = new Set([
 export function isPublicPath(pathname: string): boolean {
   if (!pathname) return false;
   if (PUBLIC_EXACT.has(pathname)) return true;
+  // Local Collections / Trove blank-canvas preview — no session required
+  if (pathname === "/app/demo" || pathname.startsWith("/app/demo/")) return true;
   // Static / metadata routes never need the gate chrome
   if (pathname === "/robots.txt" || pathname === "/sitemap.xml") return true;
   return false;

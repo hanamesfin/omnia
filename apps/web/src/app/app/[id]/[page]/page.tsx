@@ -10,7 +10,6 @@ import {
   firstProductPageId,
 } from "@/components/ProductAppShell";
 import { ProductAgentSurface } from "@/components/ProductAgentSurface";
-import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 
 export default function ProductAppPage() {
   const params = useParams();
@@ -80,25 +79,19 @@ export default function ProductAppPage() {
 
   if (error) {
     return (
-      <div className="relative mx-auto flex h-full max-w-3xl flex-col px-4 py-8 sm:px-6">
-        <ShellMenuAnchor />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted">
-          <p>{error}</p>
-          <Link href="/yours" className="text-alive hover:underline">
-            Back to Yours
-          </Link>
-        </div>
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 px-4 text-sm text-muted">
+        <p>{error}</p>
+        <Link href="/yours" className="text-alive hover:underline">
+          Back to Yours
+        </Link>
       </div>
     );
   }
 
   if (!agent) {
     return (
-      <div className="relative mx-auto flex h-full max-w-3xl flex-col px-4 py-8 sm:px-6" aria-busy>
-        <ShellMenuAnchor />
-        <div className="flex flex-1 items-center justify-center">
-          <div className="skeleton h-16 w-64 rounded-2xl" />
-        </div>
+      <div className="flex h-dvh items-center justify-center px-4" aria-busy>
+        <div className="skeleton h-16 w-64 rounded-2xl" />
       </div>
     );
   }

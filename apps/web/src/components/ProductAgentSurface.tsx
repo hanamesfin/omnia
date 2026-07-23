@@ -265,15 +265,29 @@ export function ProductAgentSurface({
   if (isChat) {
     const isEmpty = messages.length === 0;
     return (
-      <div className="flex min-h-0 flex-1 flex-col bg-background">
+      <div className="flex min-h-0 flex-1 flex-col bg-transparent">
         <div className={`chat-thread flex-1 overflow-y-auto ${isEmpty ? "flex" : "p-4 sm:p-6"}`}>
           {isEmpty ? (
             <div className="m-auto flex w-full max-w-3xl flex-col items-center px-5 pb-[10vh] text-center">
-              <Bot className="mb-5 h-9 w-9 text-foreground" strokeWidth={1.5} aria-hidden />
-              <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+              <Bot
+                className="mb-5 h-9 w-9"
+                strokeWidth={1.5}
+                aria-hidden
+                style={{ color: "var(--pf-fg, currentColor)" }}
+              />
+              <h2
+                className="text-2xl font-light tracking-[-0.03em] sm:text-3xl"
+                style={{ fontFamily: "var(--pf-font-display, inherit)", color: "var(--pf-fg, inherit)" }}
+              >
                 Ready when you are.
               </h2>
-              <p className="mt-2 text-sm text-muted">
+              <p
+                className="mt-2 text-[12px]"
+                style={{
+                  color: "var(--pf-muted, #999)",
+                  fontFamily: "var(--pf-font-mono, inherit)",
+                }}
+              >
                 Ask {agent.name} anything, create something, or work through a task.
               </p>
               <div className="mt-7 w-full text-left">
