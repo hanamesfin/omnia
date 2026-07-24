@@ -22,6 +22,42 @@ ProgressFn = Callable[[dict[str, Any]], Awaitable[None] | None]
 MAX_RETRIES = 2
 
 
+def _apply_design_match(workspace: dict[str, Any], *, name: str, transcript: str) -> dict[str, Any]:
+    """
+    Prompt→template match (offline heuristics + optional embeddings).
+    Persists figma_template + design_match for design_system / ui_codegen.
+    """
+    try:
+        from services.figma.matcher import find_best_figma_template
+    except Exception as e:
+        log.warning("product_factory.design_match_import_failed", error=str(e))
+        return workspace
+
+    domain = str(
+        (workspace.get("ai_core") or {}).get("domain")
+        or workspace.get("product_type")
+        or ""
+    )
+    prompt = f"{name}\n{transcript}"[:4000]
+    match = find_best_figma_template(prompt, domain=domain, top_k=4)
+    dm = match.get("design_match") or {}
+    workspace["figma_template"] = {
+        "id": match.get("id"),
+        "file_key": match.get("file_key"),
+        "node_id": match.get("node_id"),
+        "domain": match.get("domain"),
+        "product_archetype": match.get("product_archetype") or dm.get("archetype"),
+        "style_tags": list(match.get("style_tags") or dm.get("style_tags") or [])[:8],
+        "score": match.get("score"),
+        "match_method": match.get("match_method"),
+        "match_reason": match.get("match_reason") or dm.get("rationale"),
+        "placeholder": bool(match.get("placeholder")),
+        "candidates": list(match.get("candidates") or [])[:4],
+    }
+    workspace["design_match"] = dict(dm) if dm else {}
+    return workspace
+
+
 async def run_product_factory(
     *,
     name: str,
@@ -66,6 +102,9 @@ async def run_product_factory(
 
     for phase_id in ordered:
         label = PHASE_LABELS.get(phase_id, phase_id)
+        # Match Figma/design catalog before brand phase so design_system sees style brief.
+        if phase_id == "design_system" and not (workspace.get("design_match") or {}).get("template_id"):
+            workspace = _apply_design_match(workspace, name=name, transcript=transcript)
         await emit(
             {
                 "type": "phase_start",
@@ -367,11 +406,21 @@ async def _run_specialist(
     parse_json: ParseFn,
 ) -> tuple[dict[str, Any], str]:
     system = load_prompt(phase_id)
+    style_brief = ""
+    if phase_id == "design_system":
+        try:
+            from services.figma.matcher import format_style_brief
+
+            style_brief = format_style_brief(workspace.get("design_match") or {})
+        except Exception:
+            style_brief = ""
+    brief_block = f"\n\n{style_brief}\n" if style_brief else ""
     user = (
         f"Product name: {name}\n\n"
         f"Interview transcript:\n{transcript[:6000]}\n\n"
         f"Interview requirements JSON:\n{requirements_json}\n\n"
-        f"Workspace so far:\n{json.dumps(_workspace_brief(workspace), default=str)[:6000]}\n\n"
+        f"Workspace so far:\n{json.dumps(_workspace_brief(workspace), default=str)[:6000]}"
+        f"{brief_block}\n\n"
         f"Complete the '{phase_id}' phase. Return JSON only."
     )
     max_tokens = 3200 if phase_id in ("ai_core", "page_ux", "prd") else 1800
@@ -428,6 +477,13 @@ def _workspace_brief(workspace: dict[str, Any]) -> dict[str, Any]:
             "tokens": (workspace.get("design_system") or {}).get("tokens"),
             "chrome": (workspace.get("design_system") or {}).get("chrome"),
         },
+        "design_match": workspace.get("design_match") or {},
+        "figma_template": {
+            "id": (workspace.get("figma_template") or {}).get("id"),
+            "domain": (workspace.get("figma_template") or {}).get("domain"),
+            "score": (workspace.get("figma_template") or {}).get("score"),
+            "style_tags": (workspace.get("figma_template") or {}).get("style_tags"),
+        },
         "page_spec_ids": list((workspace.get("page_specs") or {}).keys()),
         "architecture": workspace.get("architecture"),
         "has_generated_frontend": bool((workspace.get("generated_frontend") or {}).get("files")),
@@ -455,7 +511,9 @@ def _phase_summary(phase_id: str, workspace: dict[str, Any]) -> str:
         if files:
             return f"{len(files)} frontend files"
         tmpl = (workspace.get("figma_template") or {}).get("id") or ""
-        return f"skipped{f' (matched {tmpl})' if tmpl else ''}"
+        score = (workspace.get("design_match") or {}).get("score")
+        extra = f" score={score:.2f}" if isinstance(score, (int, float)) and score else ""
+        return f"skipped{f' (matched {tmpl}{extra})' if tmpl else ''}"
     if phase_id == "architecture":
         mods = (workspace.get("architecture") or {}).get("modules") or []
         return f"{len(mods)} modules"

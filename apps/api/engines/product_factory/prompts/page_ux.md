@@ -1,12 +1,14 @@
 You write UX specs for each navigation page (cap ~12).
 
-Product UI language = **Collections App** (standalone blank canvas):
-- Soft gray canvas (`#f4f4f4`), white content surfaces, black primary actions
-- Page titles: large light editorial display type (Platypi); meta/counts in IBM Plex Mono
-- Filters: horizontal mono labels with underline ink indicator — use class `product-app-filter` / `product-app-filter-item` (not chip spam)
-- Lists/grids: generous gutters (~20px), soft media radius (~6px via `product-app-media`), card radius (~12px via `product-app-card`)
-- Empty states: calm one-sentence copy + one primary action (`product-app-btn-primary`)
+Product UI language = **this product's design_system** (personality + tokens from prior phase):
+- Canvas / surfaces / ink / accent from `design_system.tokens.colors`
+- Display + body + mono from `design_system.tokens.typography`
+- Empty states: calm one-sentence copy + one primary action
 - No OMNIA chrome; product nav is the bottom frosted pill
+- Do **not** prescribe Collections App / Trove / Platypi / `#f4f4f4` unless the product is a curation/collections app
+
+For curation / collections products only: soft gray canvas, editorial display, mono meta filters
+(`product-app-filter`), soft media radius, masonry-friendly empty states.
 
 Return ONLY valid JSON:
 {
@@ -28,3 +30,4 @@ Return ONLY valid JSON:
 
 Cover every nav leaf unless deferred. Mark AI surfaces with ai_powered true.
 Keep empty/loading copy product-specific — not generic "no data yet" templates.
+Make primary_actions concrete and domain-specific (not "Open" / "Save" alone).

@@ -9,11 +9,14 @@ import {
   type ProductBlueprint,
   type ProductPage,
 } from "@/components/ProductShell";
+import { BlueprintProductSurface } from "@/components/BlueprintProductSurface";
 import { CollectionsProductSurface } from "@/components/collections/CollectionsProductSurface";
 import {
+  hasGeneratedFrontend,
   isCollectionsContentPage,
   isCollectionsProduct,
 } from "@/components/collections/is-collections-product";
+import { GeneratedProductSurface } from "@/components/GeneratedProductSurface";
 import { resolveProductDesignSystem } from "@/lib/product-design-defaults";
 import { productNavIcon } from "@/lib/product-nav-icon";
 
@@ -72,9 +75,10 @@ export function firstProductPageId(blueprint: ProductBlueprint | null | undefine
 }
 
 /**
- * Blank-canvas product shell — Collections App (Figma Make) chrome.
- * No OMNIA sidebar / hamburger / “Made with OMNIA”.
- * Centered top brand, soft gray canvas, floating frosted bottom pill nav.
+ * Standalone product shell for `/app/*`.
+ * - Collections/Trove masonry only when `isCollectionsProduct`
+ * - Generated Figma codegen UI when `generated_frontend` exists (pure agent UI)
+ * - Otherwise blueprint page_specs + agent design_system (no Trove inheritance)
  */
 export function ProductAppShell({
   agentId,
@@ -93,20 +97,83 @@ export function ProductAppShell({
   const activeSpec = active ? specs[active.id] : undefined;
   const showAi = isAiPage(active, activeSpec);
   const collectionsMode = isCollectionsProduct(blueprint);
+  const codegenMode = hasGeneratedFrontend(blueprint);
   const collectionsPage =
-    collectionsMode && !showAi && isCollectionsContentPage(active?.id || pageId);
+    collectionsMode &&
+    !showAi &&
+    !codegenMode &&
+    isCollectionsContentPage(active?.id || pageId);
   const ds = useMemo(
-    () => resolveProductDesignSystem(blueprint.design_system),
-    [blueprint.design_system]
+    () =>
+      resolveProductDesignSystem(blueprint.design_system, {
+        variant: collectionsMode ? "collections" : "standalone",
+      }),
+    [blueprint.design_system, collectionsMode]
   );
-  const showProductNav = pages.length > 1;
+  const showProductNav = pages.length > 1 && !codegenMode;
   const metaLine = specialty || blueprint.uvp || blueprint.product_type || "";
   const [navVisible, setNavVisible] = useState(true);
-  const hideChromeHeader = immersive || collectionsPage;
+  const hideChromeHeader = immersive || collectionsPage || codegenMode;
+
+  const genFiles = blueprint.generated_frontend?.files || {};
+  const cssVars = useMemo(() => {
+    const colors = ds.tokens?.colors || {};
+    const typo = ds.tokens?.typography || {};
+    return {
+      "--pf-bg": String(colors.bg || "#f6f5f2"),
+      "--pf-fg": String(colors.fg || "#141414"),
+      "--pf-surface": String(colors.surface || "#fff"),
+      "--pf-muted": String(colors.muted || "#6b6b6b"),
+      "--pf-accent": String(colors.accent || colors.fg || "#141414"),
+      "--pf-border": String(colors.border || "rgba(0,0,0,0.1)"),
+      "--pf-font-display": String(typo.font_display || "Fraunces"),
+      "--pf-font-body": String(typo.font_sans || "DM Sans"),
+      "--pf-font-mono": String(typo.font_mono || "IBM Plex Mono"),
+    };
+  }, [ds]);
 
   useEffect(() => {
     setNavVisible(true);
   }, [pageId]);
+
+  // Pure codegen surface — agent-owned UI only (minimal exit chrome)
+  if (codegenMode && !showAi) {
+    return (
+      <div className="relative flex h-dvh min-h-0 w-full flex-col overflow-hidden">
+        <Link
+          href={
+            agentId === "demo"
+              ? "/explore"
+              : `/yours/${encodeURIComponent(agentId)}`
+          }
+          className="absolute left-3 top-3 z-50 rounded-full px-3 py-1.5 text-[10px] font-medium tracking-wide opacity-60 transition hover:opacity-100"
+          style={{
+            background: "rgba(255,255,255,0.85)",
+            color: "#333",
+            fontFamily: "ui-monospace, monospace",
+            paddingTop: "max(0.35rem, env(safe-area-inset-top, 0px))",
+          }}
+          title={agentId === "demo" ? "Back to Discover" : "Manage in OMNIA"}
+        >
+          {agentId === "demo" ? "Exit" : "Manage"}
+        </Link>
+        <GeneratedProductSurface
+          files={genFiles}
+          pageId={active?.id || pageId}
+          productName={productName}
+          cssVars={cssVars}
+        />
+        {toast ? (
+          <div
+            role="status"
+            className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full border bg-white px-5 py-2.5 text-xs shadow-2xl"
+          >
+            {toast}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <DesignTokenProvider
@@ -118,7 +185,6 @@ export function ProductAppShell({
         } as CSSProperties
       }
     >
-      {/* Collections TopBar: centered brand mark */}
       <header className="product-app-topbar relative flex h-16 shrink-0 items-center px-5 pt-5">
         <Link
           href={
@@ -194,15 +260,17 @@ export function ProductAppShell({
               onNavVisibilityChange={setNavVisible}
             />
           ) : (
-            <ActionPage
+            <BlueprintProductSurface
+              agentId={agentId}
               productName={productName}
-              pageLabel={active?.label || pageId}
               pageId={active?.id || pageId}
+              pageLabel={active?.label || pageId}
               spec={activeSpec}
+              description={active?.description}
+              metaLine={metaLine}
               aiPageId={
                 pages.find((p) => isAiPage(p, specs[p.id]))?.id || pages[0]?.id || ""
               }
-              agentId={agentId}
               onAction={onAction}
             />
           )}
@@ -260,80 +328,5 @@ export function ProductAppShell({
         </div>
       ) : null}
     </DesignTokenProvider>
-  );
-}
-
-function ActionPage({
-  productName,
-  pageLabel,
-  pageId,
-  spec,
-  aiPageId,
-  agentId,
-  onAction,
-}: {
-  productName: string;
-  pageLabel: string;
-  pageId: string;
-  spec?: PageSpec;
-  aiPageId: string;
-  agentId: string;
-  onAction?: (action: string, pageId: string) => void;
-}) {
-  const actions = Array.isArray(spec?.primary_actions) ? spec.primary_actions : [];
-
-  return (
-    <div className="flex flex-1 flex-col items-center gap-5 overflow-y-auto px-5 pb-8 pt-2">
-      <div className="product-app-card w-full max-w-lg px-6 pb-6 pt-7 text-center">
-        <p
-          className="text-[13px] leading-snug tracking-[-0.03em]"
-          style={{
-            color: "var(--pf-fg, #000)",
-            fontFamily: "var(--pf-font-display, inherit)",
-          }}
-        >
-          {spec?.empty_state ||
-            `${pageLabel} is part of ${productName}. Use an action below or open the AI workspace.`}
-        </p>
-        {actions.length > 0 ? (
-          <ul className="mt-5 flex flex-wrap justify-center gap-2">
-            {actions.map((a) => (
-              <li key={a}>
-                <button
-                  type="button"
-                  onClick={() => onAction?.(a, pageId)}
-                  className="product-app-btn-primary min-h-tap rounded-full px-4 text-[12px] font-medium transition active:scale-95"
-                >
-                  {a}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {aiPageId ? (
-          <Link
-            href={`/app/${agentId}/${encodeURIComponent(aiPageId)}`}
-            className="mt-5 inline-block text-[12px] tracking-[-0.02em] underline-offset-4 hover:underline"
-            style={{
-              color: "var(--pf-muted, #999)",
-              fontFamily: "var(--pf-font-mono, inherit)",
-            }}
-          >
-            Open AI workspace →
-          </Link>
-        ) : null}
-      </div>
-      {spec?.a11y_notes ? (
-        <p
-          className="text-[10px]"
-          style={{
-            color: "var(--pf-muted, #999)",
-            fontFamily: "var(--pf-font-mono, inherit)",
-          }}
-        >
-          A11y: {spec.a11y_notes}
-        </p>
-      ) : null}
-    </div>
   );
 }

@@ -20,6 +20,7 @@ export type ProductNavItem = {
 export type PageSpec = {
   purpose?: string;
   primary_actions?: string[];
+  secondary_actions?: string[];
   empty_state?: string;
   loading_state?: string;
   error_state?: string;
@@ -31,12 +32,28 @@ export type ProductBlueprint = {
   product_type?: string;
   daily_workflow?: string;
   uvp?: string;
+  problem_worth_solving?: string;
   information_architecture?: {
     pages?: ProductPage[];
     nav?: ProductNavItem[];
   };
   design_system?: DesignSystem;
   page_specs?: Record<string, PageSpec>;
+  /** Figma template match from Product Factory ui_codegen */
+  figma_template?: {
+    id?: string;
+    file_key?: string;
+    node_id?: string;
+    domain?: string;
+    fallback_to?: string;
+    placeholder?: boolean;
+    score?: number;
+  };
+  /** Vision-codegen TSX artifacts — authoritative product UI when present */
+  generated_frontend?: {
+    files?: Record<string, string>;
+    source?: Record<string, unknown>;
+  };
 };
 
 type Props = {
@@ -79,7 +96,10 @@ export function ProductShell({ blueprint, productName, aiSurface, header }: Prop
     (active && /assistant|chat|coach|lab|prep/i.test(active.id + (active.label || "")));
 
   const ds = useMemo(
-    () => resolveProductDesignSystem(blueprint.design_system),
+    () =>
+      resolveProductDesignSystem(blueprint.design_system, {
+        variant: "standalone",
+      }),
     [blueprint.design_system]
   );
 

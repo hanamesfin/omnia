@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:collections": "npx --yes tsx --test src/components/collections/is-collections-product.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

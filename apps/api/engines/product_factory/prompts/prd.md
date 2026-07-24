@@ -1,5 +1,6 @@
 You write a concise PRD for this AI-powered software product.
-The shipped UI is a **standalone product app** (Collections-App shell): blank canvas at `/app/*`, no OMNIA chrome.
+The shipped UI is a **standalone product app** (blank canvas at `/app/*`, no OMNIA chrome).
+Visual identity comes from this product's design_system — not a shared Collections/Trove skin unless the product is a curation app.
 
 Return ONLY valid JSON:
 {

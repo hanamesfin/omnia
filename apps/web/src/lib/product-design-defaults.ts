@@ -5,6 +5,7 @@ import type { ProductBlueprint } from "@/components/ProductShell";
  * Default product UI language from Figma Make "Collections-App" (Trove).
  * Soft gray canvas, black accent, Platypi display + Host Grotesk body + IBM Plex Mono meta,
  * centered top mark, floating frosted bottom pill nav.
+ * ONLY for true Collections / Trove products — not every agent.
  */
 export const COLLECTIONS_PRODUCT_DESIGN: DesignSystem = {
   personality: "curated_calm",
@@ -45,6 +46,56 @@ export const COLLECTIONS_PRODUCT_DESIGN: DesignSystem = {
     radius: {
       media: "6px",
       card: "12px",
+      pill: "999px",
+      control: "0.625rem",
+    },
+    motion: {
+      enter: "fade-up 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+      micro: "140ms cubic-bezier(0.22, 1, 0.36, 1)",
+      spring: "spring 420/38",
+      emphasis: "nav-pill layout spring",
+    },
+  },
+};
+
+/**
+ * Neutral standalone shell — used when an agent has its own design_system
+ * (or none yet). Does NOT inherit Collections / Trove tokens or references.
+ */
+export const STANDALONE_PRODUCT_DESIGN: DesignSystem = {
+  personality: "distinctive_utility",
+  emotional_goals: ["clarity", "focus"],
+  references: [],
+  chrome: {
+    mode: "standalone",
+    omnia_shell: false,
+    product_nav_only: true,
+    nav_placement: "bottom_pill",
+    top_bar: "centered_brand",
+  },
+  tokens: {
+    colors: {
+      bg: "#f6f5f2",
+      fg: "#141414",
+      accent: "#1a1a1a",
+      muted: "#6b6b6b",
+      border: "rgba(20,20,20,0.1)",
+      surface: "#ffffff",
+    },
+    typography: {
+      font_display: "Fraunces",
+      font_sans: "DM Sans",
+      font_mono: "IBM Plex Mono",
+    },
+    space: {
+      unit: "4px",
+      gutter: "20px",
+      section: "2.5rem",
+      nav_pad: "34px",
+    },
+    radius: {
+      media: "8px",
+      card: "14px",
       pill: "999px",
       control: "0.625rem",
     },
@@ -122,15 +173,16 @@ export const TROVE_PRODUCT_BLUEPRINT: ProductBlueprint = {
       primary_actions: ["Suggest collection", "Tag this item"],
     },
   },
+  figma_template: { id: "collections_curation" },
 };
 
 /** Map Google font names → CSS stacks (loaded via product font link). */
 export function fontStackFor(name: string | undefined | null, kind: "display" | "sans" | "mono"): string {
   const n = String(name || "").trim();
   if (!n) {
-    if (kind === "display") return '"Platypi", Georgia, "Times New Roman", serif';
+    if (kind === "display") return '"Fraunces", Georgia, "Times New Roman", serif';
     if (kind === "mono") return '"IBM Plex Mono", ui-monospace, Menlo, monospace';
-    return '"Host Grotesk", system-ui, sans-serif';
+    return '"DM Sans", system-ui, sans-serif';
   }
   if (n.includes(",") || n.startsWith("var(") || n.startsWith('"')) return n;
   if (kind === "mono" || /mono|plex mono|jetbrains|sf mono/i.test(n)) {
@@ -142,11 +194,23 @@ export function fontStackFor(name: string | undefined | null, kind: "display" | 
   return `"${n}", system-ui, -apple-system, sans-serif`;
 }
 
-/** Merge blueprint design_system onto Collections defaults (blueprint wins). */
+export type ResolveDesignOptions = {
+  /** Use Collections/Trove token base. Default: standalone (no Trove inheritance). */
+  variant?: "collections" | "standalone";
+};
+
+/**
+ * Merge blueprint design_system onto a base.
+ * Non-collections products use STANDALONE_PRODUCT_DESIGN — never inherit Trove refs/tokens.
+ */
 export function resolveProductDesignSystem(
-  designSystem?: DesignSystem | null
+  designSystem?: DesignSystem | null,
+  options?: ResolveDesignOptions
 ): DesignSystem {
-  const base = COLLECTIONS_PRODUCT_DESIGN;
+  const base =
+    options?.variant === "collections"
+      ? COLLECTIONS_PRODUCT_DESIGN
+      : STANDALONE_PRODUCT_DESIGN;
   const incoming = designSystem || {};
   const baseTokens = base.tokens || {};
   const inTokens = incoming.tokens || {};
@@ -157,10 +221,25 @@ export function resolveProductDesignSystem(
     nav_placement: "bottom_pill",
     top_bar: "centered_brand",
   };
+
+  const hasIncomingRefs =
+    Array.isArray(incoming.references) && incoming.references.length > 0;
+  const hasIncomingGoals =
+    Array.isArray(incoming.emotional_goals) && incoming.emotional_goals.length > 0;
+
   return {
     personality: String(incoming.personality || base.personality || ""),
-    references: incoming.references || base.references,
-    emotional_goals: incoming.emotional_goals || base.emotional_goals,
+    // Do not leak Collections references onto unrelated agents
+    references: hasIncomingRefs
+      ? incoming.references
+      : options?.variant === "collections"
+        ? base.references
+        : [],
+    emotional_goals: hasIncomingGoals
+      ? incoming.emotional_goals
+      : options?.variant === "collections"
+        ? base.emotional_goals
+        : incoming.emotional_goals || base.emotional_goals || [],
     chrome: {
       ...baseChrome,
       ...(incoming.chrome || {}),

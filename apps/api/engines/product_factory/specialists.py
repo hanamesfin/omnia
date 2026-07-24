@@ -112,6 +112,20 @@ def heuristic_phase(phase_id: str, workspace: dict[str, Any], *, name: str, tran
 
 
 def _infer_family(text: str) -> dict[str, Any]:
+    if any(
+        k in text
+        for k in (
+            "collections app",
+            "curation",
+            "curated gallery",
+            "curated collection",
+            "trove",
+            "save to board",
+            "masonry feed",
+            "personal library",
+        )
+    ) or ("collection" in text and any(k in text for k in ("gallery", "bookmark", "aesthetic", "curat"))):
+        return _curation_family()
     if any(k in text for k in ("job", "resume", "cv", "interview", "career", "hiring")):
         return _job_family()
     if any(k in text for k in ("medical", "patient", "clinic", "health", "prescription", "lab result")):
@@ -122,6 +136,82 @@ def _infer_family(text: str) -> dict[str, Any]:
         return _travel_family()
     return _generic_saas_family()
 
+
+def _curation_family() -> dict[str, Any]:
+    """Collections / Trove — the only family that owns Collections visual language."""
+    pages = [
+        {"id": "home", "label": "Home", "ai_powered": False, "description": "Masonry feed of saves", "actions": ["Open item"]},
+        {"id": "collections", "label": "Collections", "ai_powered": False, "description": "Browse boards", "actions": ["New collection"]},
+        {"id": "search", "label": "Search", "ai_powered": False, "description": "Find saves", "actions": ["Search"]},
+        {"id": "assistant", "label": "Curator", "ai_powered": True, "description": "AI curator", "actions": ["Suggest collection"]},
+    ]
+    return {
+        "product_type": "Collections App",
+        "ai_core_role": "Curate, tag, and group saves into collections.",
+        "daily_workflow": "Browse My Trove, open or create collections, search saves, ask the curator.",
+        "problem": "Saved inspiration scatters across tabs without a calm personal canvas.",
+        "uvp": "Collect, organize, and browse with a calm curated canvas.",
+        "users": ["Collector", "Creative researcher"],
+        "market": "Personal curation apps with AI assist.",
+        "goals": ["Faster collecting", "Better organization", "Calm browsing"],
+        "fr": ["Masonry home feed", "Collections CRUD", "Search saves", "AI curator assist"],
+        "constraints": ["Never invent saved items", "Confirm before bulk delete"],
+        "metrics": ["Saves per week", "Collections created"],
+        "pages": pages,
+        "deferred": ["social_share", "billing"],
+        "design_system": {
+            "personality": "curated_calm",
+            "emotional_goals": ["calm", "clarity", "focus"],
+            "references": ["Collections App / Trove", "Siteinspire", "Mobbin"],
+            "chrome": {
+                "mode": "standalone",
+                "omnia_shell": False,
+                "product_nav_only": True,
+                "nav_placement": "bottom_pill",
+                "top_bar": "centered_brand",
+            },
+            "tokens": {
+                "colors": {
+                    "bg": "#f4f4f4",
+                    "fg": "#000000",
+                    "accent": "#000000",
+                    "muted": "#999999",
+                    "border": "rgba(0,0,0,0.1)",
+                    "surface": "#ffffff",
+                },
+                "typography": {
+                    "font_display": "Platypi",
+                    "font_sans": "Host Grotesk",
+                    "font_mono": "IBM Plex Mono",
+                },
+                "spacing": {"unit": "4px", "gutter": "20px", "section": "2.5rem"},
+                "radius": "12px",
+                "motion": {"enter": "fade-up 320ms", "emphasis": "nav-pill spring"},
+                "shadow": "frosted pill",
+            },
+        },
+        "modules": ["HomeFeed", "Collections", "Search", "Curator"],
+        "entities": ["Item", "Collection", "Save", "Tag"],
+        "integrations": ["Import URL", "Image upload"],
+        "ai_integration": "Assistant/Curator page calls AI core; Home/Collections stay content chrome.",
+        "domain": "curation",
+        "kind": "collections_curator",
+        "tone": "calm and precise",
+        "tools": ["web_search", "web_fetch", "file_parse"],
+        "system_prompt": _long_prompt(
+            "Collections Curator AI Core",
+            "Help group, tag, and discover collection ideas without inventing saves.",
+            ["web_search", "web_fetch", "file_parse"],
+        ),
+        "interface_schema": {
+            "mode": "chat",
+            "title": "Curator",
+            "description": "Ask for grouping ideas or what to collect next",
+            "submit_label": "Ask",
+            "input_fields": [],
+            "output": {"type": "markdown", "label": "Curator reply"},
+        },
+    }
 
 def _job_family() -> dict[str, Any]:
     pages = [
@@ -156,7 +246,7 @@ def _job_family() -> dict[str, Any]:
         "design_system": {
             "personality": "focused_momentum",
             "emotional_goals": ["confidence", "clarity"],
-            "references": ["Collections App", "Linear", "Ashby"],
+            "references": ["Linear", "Ashby", "TealHQ"],
             "chrome": {
                 "mode": "standalone",
                 "omnia_shell": False,
@@ -166,22 +256,22 @@ def _job_family() -> dict[str, Any]:
             },
             "tokens": {
                 "colors": {
-                    "bg": "#f4f4f4",
-                    "fg": "#0a0a0a",
-                    "accent": "#0a0a0a",
-                    "muted": "#999999",
-                    "border": "rgba(0,0,0,0.1)",
+                    "bg": "#f3f1ec",
+                    "fg": "#0c1222",
+                    "accent": "#1d4e89",
+                    "muted": "#5c6578",
+                    "border": "rgba(12,18,34,0.1)",
                     "surface": "#ffffff",
                 },
                 "typography": {
-                    "font_display": "Platypi",
-                    "font_sans": "Host Grotesk",
+                    "font_display": "Fraunces",
+                    "font_sans": "DM Sans",
                     "font_mono": "IBM Plex Mono",
                 },
                 "spacing": {"unit": "4px", "gutter": "20px", "section": "2.5rem"},
-                "radius": "12px",
+                "radius": "14px",
                 "motion": {"enter": "fade-up 320ms", "emphasis": "nav-pill spring"},
-                "shadow": "frosted pill",
+                "shadow": "soft elevation",
             },
         },
         "modules": ["Profile", "Applications", "ResumeLab", "InterviewCoach", "Analytics"],
@@ -245,7 +335,7 @@ def _medical_family() -> dict[str, Any]:
         "design_system": {
             "personality": "clinical_trust",
             "emotional_goals": ["calm", "trust", "clarity"],
-            "references": ["Collections App", "Apple Health restraint"],
+            "references": ["Apple Health restraint", "Epic calm clinical"],
             "chrome": {
                 "mode": "standalone",
                 "omnia_shell": False,
@@ -255,22 +345,22 @@ def _medical_family() -> dict[str, Any]:
             },
             "tokens": {
                 "colors": {
-                    "bg": "#f4f4f4",
+                    "bg": "#eef3f1",
                     "fg": "#1a2b3c",
                     "accent": "#0b6e4f",
                     "muted": "#6b7c8a",
-                    "border": "rgba(0,0,0,0.1)",
+                    "border": "rgba(26,43,60,0.12)",
                     "surface": "#ffffff",
                 },
                 "typography": {
-                    "font_display": "Platypi",
-                    "font_sans": "Host Grotesk",
+                    "font_display": "Source Serif 4",
+                    "font_sans": "Source Sans 3",
                     "font_mono": "IBM Plex Mono",
                 },
                 "spacing": {"unit": "4px", "gutter": "20px", "section": "2.5rem"},
-                "radius": "12px",
+                "radius": "10px",
                 "motion": {"enter": "fade-up 320ms", "emphasis": "nav-pill spring"},
-                "shadow": "frosted pill",
+                "shadow": "soft elevation",
             },
         },
         "modules": ["Patients", "Charts", "Reports", "Labs", "Compliance"],
@@ -334,7 +424,7 @@ def _coding_family() -> dict[str, Any]:
         "design_system": {
             "personality": "terminal_precision",
             "emotional_goals": ["speed", "focus"],
-            "references": ["Collections App chrome", "Cursor", "Raycast"],
+            "references": ["Cursor", "Raycast", "Linear"],
             "chrome": {
                 "mode": "standalone",
                 "omnia_shell": False,
@@ -344,22 +434,22 @@ def _coding_family() -> dict[str, Any]:
             },
             "tokens": {
                 "colors": {
-                    "bg": "#f4f4f4",
+                    "bg": "#eceae6",
                     "fg": "#0b0d10",
-                    "accent": "#0b0d10",
-                    "muted": "#999999",
-                    "border": "rgba(0,0,0,0.1)",
-                    "surface": "#ffffff",
+                    "accent": "#e8590c",
+                    "muted": "#6c6f76",
+                    "border": "rgba(11,13,16,0.12)",
+                    "surface": "#fafaf8",
                 },
                 "typography": {
-                    "font_display": "Platypi",
-                    "font_sans": "Host Grotesk",
+                    "font_display": "Space Grotesk",
+                    "font_sans": "IBM Plex Sans",
                     "font_mono": "IBM Plex Mono",
                 },
                 "spacing": {"unit": "4px", "gutter": "20px", "section": "2.5rem"},
-                "radius": "12px",
-                "motion": {"enter": "fade-up 320ms", "emphasis": "nav-pill spring"},
-                "shadow": "frosted pill",
+                "radius": "8px",
+                "motion": {"enter": "fade-up 240ms", "emphasis": "nav-pill spring"},
+                "shadow": "crisp elevation",
             },
         },
         "modules": ["Repos", "PRReview", "Docs", "Deploy", "Plugins"],
@@ -416,7 +506,7 @@ def _travel_family() -> dict[str, Any]:
         "design_system": {
             "personality": "wanderlust_clarity",
             "emotional_goals": ["inspiration", "ease"],
-            "references": ["Collections App", "Polarsteps"],
+            "references": ["Polarsteps", "Wanderlog", "Sygic Travel"],
             "chrome": {
                 "mode": "standalone",
                 "omnia_shell": False,
@@ -426,22 +516,22 @@ def _travel_family() -> dict[str, Any]:
             },
             "tokens": {
                 "colors": {
-                    "bg": "#f4f4f4",
+                    "bg": "#f2efe8",
                     "fg": "#1f2a24",
-                    "accent": "#1f2a24",
-                    "muted": "#999999",
-                    "border": "rgba(0,0,0,0.1)",
-                    "surface": "#ffffff",
+                    "accent": "#2a6f6f",
+                    "muted": "#6a756e",
+                    "border": "rgba(31,42,36,0.1)",
+                    "surface": "#fffcf7",
                 },
                 "typography": {
-                    "font_display": "Platypi",
-                    "font_sans": "Host Grotesk",
+                    "font_display": "Libre Baskerville",
+                    "font_sans": "Nunito Sans",
                     "font_mono": "IBM Plex Mono",
                 },
                 "spacing": {"unit": "4px", "gutter": "20px", "section": "2.5rem"},
-                "radius": "12px",
-                "motion": {"enter": "fade-up 320ms", "emphasis": "nav-pill spring"},
-                "shadow": "frosted pill",
+                "radius": "16px",
+                "motion": {"enter": "fade-up 360ms", "emphasis": "nav-pill spring"},
+                "shadow": "soft elevation",
             },
         },
         "modules": ["Trips", "Itinerary", "Maps", "Budget", "Collab"],
@@ -500,7 +590,7 @@ def _generic_saas_family() -> dict[str, Any]:
         "design_system": {
             "personality": "editorial_utility",
             "emotional_goals": ["clarity", "competence", "calm"],
-            "references": ["Collections App / Trove", "Notion restraint"],
+            "references": ["Notion restraint", "Height", "Craft"],
             "chrome": {
                 "mode": "standalone",
                 "omnia_shell": False,
@@ -510,22 +600,22 @@ def _generic_saas_family() -> dict[str, Any]:
             },
             "tokens": {
                 "colors": {
-                    "bg": "#f4f4f4",
-                    "fg": "#000000",
-                    "accent": "#000000",
-                    "muted": "#999999",
-                    "border": "rgba(0,0,0,0.1)",
+                    "bg": "#f6f5f2",
+                    "fg": "#141414",
+                    "accent": "#2f5d50",
+                    "muted": "#6b6b6b",
+                    "border": "rgba(20,20,20,0.1)",
                     "surface": "#ffffff",
                 },
                 "typography": {
-                    "font_display": "Platypi",
-                    "font_sans": "Host Grotesk",
+                    "font_display": "Fraunces",
+                    "font_sans": "DM Sans",
                     "font_mono": "IBM Plex Mono",
                 },
                 "spacing": {"unit": "4px", "gutter": "20px", "section": "2.5rem"},
-                "radius": "12px",
+                "radius": "14px",
                 "motion": {"enter": "fade-up 320ms", "emphasis": "nav-pill spring"},
-                "shadow": "frosted pill",
+                "shadow": "soft elevation",
             },
         },
         "modules": ["Projects", "Workspace", "Library", "Insights"],

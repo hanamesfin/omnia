@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from typing import Any
+
+
+_CURATION_RE = re.compile(
+    r"\btrove\b|collections?\s*app|\bcurat(?:ed|ion)\b|masonry\s+(feed|grid)|save[- ]to[- ](board|collection)",
+    re.I,
+)
+
+
+def re_search_curation(text: str) -> bool:
+    return bool(_CURATION_RE.search(text or ""))
 
 
 def empty_workspace(*, name: str = "", chat_summary: str = "") -> dict[str, Any]:
@@ -25,6 +36,7 @@ def empty_workspace(*, name: str = "", chat_summary: str = "") -> dict[str, Any]
         "architecture": {},
         "ai_core": {},
         "figma_template": {},
+        "design_match": {},
         "generated_frontend": {},
         "generated_backend": {},
         "phases": [],
@@ -84,21 +96,40 @@ def merge_phase_output(workspace: dict[str, Any], phase_id: str, data: dict[str,
             tokens = ds.get("tokens") if isinstance(ds.get("tokens"), dict) else {}
             chrome = ds.get("chrome") if isinstance(ds.get("chrome"), dict) else {}
             typo = dict(tokens.get("typography") or ds.get("typography") or {})
-            # Collections-App defaults when specialist omits type stack
-            typo.setdefault("font_display", "Platypi")
-            typo.setdefault("font_sans", "Host Grotesk")
+            # Neutral standalone defaults — NOT Collections/Trove (Platypi/#f4f4f4).
+            # Curation products should supply their own Collections tokens explicitly.
+            typo.setdefault("font_display", "Fraunces")
+            typo.setdefault("font_sans", "DM Sans")
             typo.setdefault("font_mono", "IBM Plex Mono")
             colors = dict(tokens.get("colors") or ds.get("colors") or {})
-            colors.setdefault("bg", "#f4f4f4")
-            colors.setdefault("fg", "#000000")
-            colors.setdefault("accent", colors.get("fg") or "#000000")
-            colors.setdefault("muted", "#999999")
-            colors.setdefault("border", "rgba(0,0,0,0.1)")
+            colors.setdefault("bg", "#f6f5f2")
+            colors.setdefault("fg", "#141414")
+            colors.setdefault("accent", colors.get("fg") or "#1a1a1a")
+            colors.setdefault("muted", "#6b6b6b")
+            colors.setdefault("border", "rgba(20,20,20,0.1)")
             colors.setdefault("surface", "#ffffff")
+            # Drop accidental Collections inspiration refs on non-curation products.
+            # Decide from product identity only — never from the refs themselves.
+            refs = [str(r)[:120] for r in (ds.get("references") or [])[:6]]
+            product_blob = " ".join(
+                [
+                    str(ws.get("product_type") or ""),
+                    str(ws.get("uvp") or ""),
+                    str(ws.get("daily_workflow") or ""),
+                    str(ds.get("personality") or ""),
+                ]
+            ).lower()
+            is_curation = re_search_curation(product_blob)
+            if not is_curation:
+                refs = [
+                    r
+                    for r in refs
+                    if not re_search_curation(str(r).lower())
+                ]
             ws["design_system"] = {
                 "personality": str(ds.get("personality") or "")[:80],
                 "emotional_goals": list(ds.get("emotional_goals") or [])[:6],
-                "references": list(ds.get("references") or [])[:6],
+                "references": refs,
                 "chrome": {
                     "mode": str(chrome.get("mode") or "standalone")[:32],
                     "omnia_shell": bool(chrome.get("omnia_shell")) if "omnia_shell" in chrome else False,
@@ -116,9 +147,9 @@ def merge_phase_output(workspace: dict[str, Any], phase_id: str, data: dict[str,
                     "colors": colors,
                     "typography": typo,
                     "spacing": dict(tokens.get("spacing") or ds.get("spacing") or {}),
-                    "radius": str(tokens.get("radius") or ds.get("radius") or "12px"),
+                    "radius": str(tokens.get("radius") or ds.get("radius") or "14px"),
                     "motion": dict(tokens.get("motion") or ds.get("motion") or {}),
-                    "shadow": str(tokens.get("shadow") or ds.get("shadow") or "frosted pill"),
+                    "shadow": str(tokens.get("shadow") or ds.get("shadow") or "soft elevation"),
                 },
             }
 
@@ -156,6 +187,37 @@ def merge_phase_output(workspace: dict[str, Any], phase_id: str, data: dict[str,
                 "integrations": list(arch.get("integrations") or [])[:12],
                 "ai_core_integration": str(arch.get("ai_core_integration") or "")[:400],
             }
+
+    if isinstance(data.get("design_match"), dict) and data["design_match"]:
+        dm = data["design_match"]
+        ws["design_match"] = {
+            "archetype": str(dm.get("archetype") or "")[:64],
+            "domain": str(dm.get("domain") or "")[:40],
+            "style_tags": [str(t)[:40] for t in (dm.get("style_tags") or [])[:8]],
+            "vibe": str(dm.get("vibe") or "")[:200],
+            "layout_pattern": str(dm.get("layout_pattern") or "")[:80],
+            "score": float(dm.get("score") or 0.0),
+            "rationale": str(dm.get("rationale") or "")[:400],
+            "template_id": str(dm.get("template_id") or "")[:64],
+            "reference_descriptors": [str(r)[:160] for r in (dm.get("reference_descriptors") or [])[:2]],
+            "anti_patterns": [str(a)[:60] for a in (dm.get("anti_patterns") or [])[:8]],
+            "match_method": str(dm.get("match_method") or "")[:32],
+            "candidates": list(dm.get("candidates") or [])[:4],
+            "function": str(dm.get("function") or "")[:200],
+            "layout_intent": str(dm.get("layout_intent") or dm.get("layout_pattern") or "")[:80],
+            "mood": str(dm.get("mood") or "")[:64],
+            "reference_apps": [str(a)[:40] for a in (dm.get("reference_apps") or [])[:4]],
+            "product_surface_hints": [str(s)[:80] for s in (dm.get("product_surface_hints") or [])[:6]],
+            "visual_brief_clear": bool(dm.get("visual_brief_clear")),
+            "audience": str(dm.get("audience") or "")[:80],
+            "token_hints": {
+                str(k)[:40]: str(v)[:64]
+                for k, v in list((dm.get("token_hints") or {}).items())[:10]
+            }
+            if isinstance(dm.get("token_hints"), dict)
+            else {},
+            "design_directions": list(dm.get("design_directions") or [])[:3],
+        }
 
     if phase_id == "ui_codegen" or "generated_frontend" in data or "figma_template" in data:
         if isinstance(data.get("figma_template"), dict) and data["figma_template"]:
@@ -293,6 +355,8 @@ def to_product_blueprint(workspace: dict[str, Any]) -> dict[str, Any]:
     # Optional full-stack codegen artifacts for web / export consumers
     if workspace.get("figma_template"):
         bp["figma_template"] = dict(workspace["figma_template"])
+    if workspace.get("design_match"):
+        bp["design_match"] = dict(workspace["design_match"])
     fe = workspace.get("generated_frontend") or {}
     if isinstance(fe, dict) and fe.get("files"):
         bp["generated_frontend"] = dict(fe)

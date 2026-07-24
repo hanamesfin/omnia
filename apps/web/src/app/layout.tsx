@@ -93,10 +93,10 @@ export default function RootLayout({
         <link rel="preconnect" href={apiOrigin} crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Collections-App product shell defaults (Platypi / Host Grotesk / IBM Plex Mono) */}
+        {/* Product shell fonts: Trove (Platypi/Host Grotesk) + standalone defaults (Fraunces/DM Sans) + common domain stacks */}
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Platypi:ital,wght@0,300..800;1,300..800&family=IBM+Plex+Mono:wght@400;500&family=Host+Grotesk:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Platypi:ital,wght@0,300..800;1,300..800&family=Host+Grotesk:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Source+Sans+3:wght@400;500&family=Libre+Baskerville:wght@400;700&family=Nunito+Sans:wght@400;600&display=swap"
         />
         <link
           rel="stylesheet"

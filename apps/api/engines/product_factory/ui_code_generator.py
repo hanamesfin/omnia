@@ -19,13 +19,21 @@ VISION_SYSTEM = """You are a principal frontend engineer. Produce pixel-perfect,
 React + Tailwind CSS from the Figma screenshot and layout JSON. Output executable TypeScript
 React (.tsx) only — no markdown prose outside code fences.
 
+Quality bar: match **v0 / Lovable / Base44** production UI — specific product surface, tasteful constraints,
+loading/empty/error states where relevant. Never ship generic purple/Inter AI aesthetics.
+
 Requirements:
 - Functional React components with TypeScript
 - Tailwind utility classes (no CSS modules)
 - lucide-react icons where icons appear
-- Match spacing, typography, and hex colors from the Figma JSON
+- Match spacing, typography, and hex colors from the Figma JSON and design_match style brief
+- Honor Base44 triad when present: function (what it does) + layout_intent + mood
+- Paint product_surface_hints screens first; do not invent unrelated chrome
 - Mobile-first responsive layout
-- Standalone product shell (no OMNIA chrome): soft canvas, centered brand, bottom frosted pill nav when the design implies it
+- Standalone product shell (no OMNIA chrome): match the Figma screenshot and THIS product's design tokens
+- Do NOT clone Collections/Trove masonry unless the matched template is collections_curation
+- Honor style_tags / vibe / reference_descriptors / token_hints from design_match when provided
+- Ban: purple-on-white, indigo gradients, Inter/Roboto/Arial, neon glow, card-spam dashboards
 
 Return a JSON object (you may wrap it in a ```json fence) shaped as:
 {
@@ -57,44 +65,61 @@ async def generate_frontend_from_figma(
 
     try:
         from services.figma.client import FigmaAPIClient, FigmaAPIError
-        from services.figma.matcher import find_best_figma_template
+        from services.figma.matcher import find_best_figma_template, format_style_brief
     except Exception as e:
         log.warning("ui_codegen.import_failed", error=str(e))
         return None
 
     domain = str(
         (workspace.get("ai_core") or {}).get("domain")
+        or (workspace.get("design_match") or {}).get("domain")
         or workspace.get("product_type")
         or ""
     )
-    match = find_best_figma_template(user_prompt, domain=domain)
+    # Reuse early factory match when present; otherwise score fresh.
+    existing = workspace.get("figma_template") if isinstance(workspace.get("figma_template"), dict) else {}
+    existing_dm = workspace.get("design_match") if isinstance(workspace.get("design_match"), dict) else {}
+    if existing.get("id") and existing_dm.get("template_id"):
+        match = {
+            **existing,
+            "design_match": existing_dm,
+            "style_tags": existing_dm.get("style_tags"),
+            "product_archetype": existing_dm.get("archetype"),
+            "vibe": existing_dm.get("vibe"),
+            "layout_pattern": existing_dm.get("layout_pattern"),
+            "reference_descriptors": existing_dm.get("reference_descriptors"),
+            "anti_patterns": existing_dm.get("anti_patterns"),
+            "match_reason": existing_dm.get("rationale"),
+            "score": existing_dm.get("score", existing.get("score")),
+            "match_method": existing_dm.get("match_method", existing.get("match_method")),
+        }
+    else:
+        match = find_best_figma_template(user_prompt, domain=domain)
+
+    design_match = match.get("design_match") or existing_dm or {}
     workspace["figma_template"] = {
         "id": match.get("id"),
         "file_key": match.get("file_key"),
         "node_id": match.get("node_id"),
         "domain": match.get("domain"),
+        "product_archetype": match.get("product_archetype") or design_match.get("archetype"),
+        "style_tags": list(match.get("style_tags") or design_match.get("style_tags") or [])[:8],
         "score": match.get("score"),
         "match_method": match.get("match_method"),
+        "match_reason": match.get("match_reason") or design_match.get("rationale"),
         "placeholder": bool(match.get("placeholder")),
+        "candidates": list(match.get("candidates") or design_match.get("candidates") or [])[:4],
     }
+    if design_match:
+        workspace["design_match"] = dict(design_match)
 
     file_key = str(match.get("file_key") or "")
     node_id = str(match.get("node_id") or "0:1")
     if not file_key or file_key.startswith("PLACEHOLDER") or match.get("placeholder"):
+        # Do NOT fall back to Collections Figma — that forces every agent onto Trove UI.
+        # Skip codegen; consumers use personality-driven design_system + page_specs instead.
         log.info("ui_codegen.skip_placeholder_template", template_id=match.get("id"))
-        # Prefer Collections seed when match landed on a placeholder — retry Collections
-        if match.get("id") != "collections_curation":
-            from services.figma.matcher import SEED_TEMPLATES
-
-            collections = next((t for t in SEED_TEMPLATES if t.get("id") == "collections_curation"), None)
-            if collections:
-                file_key = str(collections["file_key"])
-                node_id = str(collections.get("node_id") or "0:1")
-                workspace["figma_template"]["fallback_to"] = "collections_curation"
-            else:
-                return None
-        else:
-            return None
+        return None
 
     client = FigmaAPIClient()
     if not client.configured:
@@ -115,6 +140,7 @@ async def generate_frontend_from_figma(
     ia = workspace.get("information_architecture") or {}
     ds = workspace.get("design_system") or {}
     specs = workspace.get("page_specs") or {}
+    style_brief = format_style_brief(design_match if isinstance(design_match, dict) else None)
     requirements = {
         "name": workspace.get("name"),
         "uvp": workspace.get("uvp"),
@@ -126,6 +152,8 @@ async def generate_frontend_from_figma(
         "page_specs": specs,
         "design_personality": ds.get("personality") if isinstance(ds, dict) else "",
         "tokens": (ds.get("tokens") if isinstance(ds, dict) else None) or {},
+        "design_match": design_match if isinstance(design_match, dict) else {},
+        "style_brief": style_brief,
         "figma_extracted": node_payload.get("extracted") or {},
     }
 
@@ -133,6 +161,7 @@ async def generate_frontend_from_figma(
         image_url=image_url,
         figma_document=node_payload.get("document") or {},
         requirements=requirements,
+        style_brief=style_brief,
         llm_complete=llm_complete,
         preferred_model=preferred_model,
         parse_json=parse_json,
@@ -164,14 +193,18 @@ async def _vision_codegen(
     llm_complete: Any | None,
     preferred_model: str | None,
     parse_json: Any | None,
+    style_brief: str = "",
 ) -> dict[str, str] | None:
     figma_blob = json.dumps(figma_document, default=str)[:14000]
     req_blob = json.dumps(requirements, default=str)[:6000]
+    brief = (style_brief or "").strip()
+    brief_block = f"{brief}\n\n" if brief else ""
     user_text = (
+        f"{brief_block}"
         f"Screenshot URL (fetch/view this image): {image_url}\n\n"
         f"Filtered Figma layout JSON:\n{figma_blob}\n\n"
         f"Product PRD / IA / design requirements:\n{req_blob}\n\n"
-        "Generate the React+Tailwind files JSON now."
+        "Generate the React+Tailwind files JSON now. Match the style brief and Figma tokens."
     )
 
     raw: str | None = None
