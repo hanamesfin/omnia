@@ -1140,3 +1140,190 @@ html[data-reduce-motion="true"] *::after {
     transition: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AGENT ISOLATED SHELL
+   Each opened agent takes over the full viewport — no OMNIA chrome bleed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Root shell — full viewport takeover */
+.agent-isolated-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--ak-bg, #0a0a0c);
+  color: var(--ak-fg, #f0f0f0);
+  font-family: var(--pf-font-body, "Inter", system-ui, sans-serif);
+  animation: agent-shell-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes agent-shell-enter {
+  from { opacity: 0; transform: scale(0.985) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Minimal exit chrome — top-left floating pill */
+.agent-isolated-exit {
+  position: absolute;
+  top: max(0.85rem, env(safe-area-inset-top, 0px));
+  left: max(0.85rem, env(safe-area-inset-left, 0px));
+  z-index: 9010;
+}
+
+.agent-isolated-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem 0.45rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ak-muted, #888);
+  background: var(--ak-surface, rgba(255,255,255,0.06));
+  border: 1px solid var(--ak-border, rgba(255,255,255,0.08));
+  cursor: pointer;
+  text-decoration: none;
+  transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.agent-isolated-back-btn:hover {
+  color: var(--ak-fg, #f0f0f0);
+  background: color-mix(in srgb, var(--ak-accent, #7c9ef8) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ak-accent, #7c9ef8) 30%, transparent);
+  transform: translateX(-2px);
+}
+
+.agent-isolated-back-btn:active { transform: scale(0.96); }
+
+/* Body area — fills remaining space */
+.agent-isolated-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Per-kind visual identities ───────────────────────────────────────────── */
+
+/* CHAT — Midnight Companion */
+.agent-isolated-shell[data-agent-kind="chat"] {
+  background-color: #0d1117;
+  background-image:
+    radial-gradient(ellipse 60% 45% at 30% 0%, rgba(124,158,248,.07), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 90% 80%, rgba(124,158,248,.04), transparent 60%);
+}
+.agent-isolated-shell[data-agent-kind="chat"] .agent-isolated-back-btn {
+  background: rgba(124,158,248,.08);
+  border-color: rgba(124,158,248,.16);
+  color: rgba(240,236,226,.5);
+}
+.agent-isolated-shell[data-agent-kind="chat"] .agent-isolated-back-btn:hover {
+  background: rgba(124,158,248,.15);
+  border-color: rgba(124,158,248,.32);
+  color: #f0ece2;
+}
+
+/* TOOL — Precision Edge */
+.agent-isolated-shell[data-agent-kind="tool"] {
+  background-color: #0a0a0c;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(0,212,216,.025) 28px, rgba(0,212,216,.025) 29px),
+    repeating-linear-gradient(90deg, transparent, transparent 28px, rgba(0,212,216,.02) 28px, rgba(0,212,216,.02) 29px);
+}
+.agent-isolated-shell[data-agent-kind="tool"] .agent-isolated-back-btn {
+  background: rgba(0,212,216,.06);
+  border-color: rgba(0,212,216,.14);
+  color: rgba(0,212,216,.55);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .7rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-radius: 6px;
+}
+.agent-isolated-shell[data-agent-kind="tool"] .agent-isolated-back-btn:hover {
+  background: rgba(0,212,216,.13);
+  border-color: rgba(0,212,216,.32);
+  color: #00d4d8;
+}
+
+/* TRANSFORMER — Studio Violet */
+.agent-isolated-shell[data-agent-kind="transformer"] {
+  background-color: #12082a;
+  background-image:
+    radial-gradient(ellipse 55% 50% at 20% 10%, rgba(192,132,252,.1), transparent 60%),
+    radial-gradient(ellipse 45% 40% at 85% 90%, rgba(192,132,252,.07), transparent 60%);
+}
+.agent-isolated-shell[data-agent-kind="transformer"] .agent-isolated-back-btn {
+  background: rgba(192,132,252,.08);
+  border-color: rgba(192,132,252,.18);
+  color: rgba(244,240,255,.5);
+}
+.agent-isolated-shell[data-agent-kind="transformer"] .agent-isolated-back-btn:hover {
+  background: rgba(192,132,252,.16);
+  border-color: rgba(192,132,252,.35);
+  color: #c084fc;
+}
+
+/* ANALYZER — Forest Insight */
+.agent-isolated-shell[data-agent-kind="analyzer"] {
+  background-color: #071a12;
+  background-image:
+    radial-gradient(ellipse 55% 40% at 50% 0%, rgba(52,211,153,.06), transparent 60%),
+    radial-gradient(ellipse 40% 35% at 10% 80%, rgba(52,211,153,.04), transparent 55%);
+}
+.agent-isolated-shell[data-agent-kind="analyzer"] .agent-isolated-back-btn {
+  background: rgba(52,211,153,.07);
+  border-color: rgba(52,211,153,.14);
+  color: rgba(223,242,232,.5);
+}
+.agent-isolated-shell[data-agent-kind="analyzer"] .agent-isolated-back-btn:hover {
+  background: rgba(52,211,153,.13);
+  border-color: rgba(52,211,153,.3);
+  color: #34d399;
+}
+
+/* AUTOMATION — Amber Workflow */
+.agent-isolated-shell[data-agent-kind="automation"] {
+  background-color: #100e08;
+  background-image:
+    repeating-linear-gradient(-45deg, transparent, transparent 36px, rgba(245,158,11,.018) 36px, rgba(245,158,11,.018) 37px),
+    radial-gradient(ellipse 55% 40% at 80% 20%, rgba(245,158,11,.06), transparent 55%);
+}
+.agent-isolated-shell[data-agent-kind="automation"] .agent-isolated-back-btn {
+  background: rgba(245,158,11,.08);
+  border-color: rgba(245,158,11,.16);
+  color: rgba(245,237,224,.5);
+  border-radius: 8px;
+}
+.agent-isolated-shell[data-agent-kind="automation"] .agent-isolated-back-btn:hover {
+  background: rgba(245,158,11,.14);
+  border-color: rgba(245,158,11,.32);
+  color: #f59e0b;
+}
+
+/* ── Scoped token overrides inside isolated shell ─────────────────────────── */
+.agent-isolated-shell .chat-thread { background: transparent; }
+.agent-isolated-shell .field-input {
+  background: var(--ak-surface, rgba(255,255,255,.06));
+  border-color: var(--ak-border, rgba(255,255,255,.1));
+  color: var(--ak-fg, #f0f0f0);
+}
+.agent-isolated-shell .field-input:focus {
+  border-color: var(--ak-accent, rgba(255,255,255,.3));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ak-accent, #7c9ef8) 18%, transparent);
+}
+.agent-isolated-shell .glass-panel {
+  background: var(--ak-surface, rgba(255,255,255,.05));
+  border-color: var(--ak-border, rgba(255,255,255,.08));
+}
+.agent-isolated-shell .bg-alive { background-color: var(--ak-accent, #7c9ef8); }
+.agent-isolated-shell .text-muted { color: var(--ak-muted, #888) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-isolated-shell { animation: none; }
+}

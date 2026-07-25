@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   Activity,
-  ArrowLeft,
   Bot,
   Loader2,
   Play,
@@ -28,7 +27,6 @@ import {
   DynamicAgentRunner,
   type AgentInterfaceSchema,
 } from "@/components/DynamicAgentRunner";
-import { ShellMenuAnchor } from "@/components/ShellMenuDock";
 import { hasProductShell } from "@/components/ProductShell";
 import {
   ToolExecutionList,
@@ -46,6 +44,10 @@ import {
   modelDisplayName,
   type AiModel,
 } from "@/lib/models";
+import {
+  AgentIsolatedShell,
+  preloadKindFonts,
+} from "@/components/AgentIsolatedShell";
 
 type Tab = "primary" | "personalize" | "advance" | "update";
 
@@ -142,6 +144,11 @@ export default function AgentWorkspacePage() {
   useEffect(() => {
     loadModels({ force: true }).then(setModelCatalog).catch(() => setModelCatalog([]));
   }, []);
+
+  /* Preload kind-specific Google Fonts as soon as kind is known. */
+  useEffect(() => {
+    if (kind) preloadKindFonts(kind);
+  }, [kind]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -478,7 +485,6 @@ export default function AgentWorkspacePage() {
   if (!agent) {
     return (
       <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6" aria-busy>
-        <ShellMenuAnchor />
         <div className="skeleton h-16 max-w-md rounded-2xl" />
         <div className="mt-6 skeleton h-[50vh] rounded-[1.35rem]" />
       </div>
@@ -646,17 +652,17 @@ export default function AgentWorkspacePage() {
   );
 
   return (
-    <div className="relative mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
-      <ShellMenuAnchor />
+    <AgentIsolatedShell
+      kind={kind}
+      agentDesignSystem={agent?.design_system ?? agent?.product_blueprint?.design_system}
+      agentName={agent?.name || "Agent"}
+      backHref="/yours"
+      backLabel="Yours"
+    >
+    <div className="relative overflow-y-auto h-full">
+    <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6 pt-14">
       <div className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-3">
-          <Link
-            href="/yours"
-            aria-label="Back to Yours"
-            className="mt-0.5 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-alive"
-          >
-            <ArrowLeft size={20} />
-          </Link>
           <AgentIcon
             name={agent.name}
             kind={kind}
@@ -1084,6 +1090,8 @@ export default function AgentWorkspacePage() {
         </div>
       )}
     </div>
+    </div>
+    </AgentIsolatedShell>
   );
 }
 

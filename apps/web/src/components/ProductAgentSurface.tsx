@@ -22,6 +22,8 @@ import {
   ToolExecutionList,
   type ToolCallRecord,
 } from "@/components/ToolExecutionBlock";
+import { resolveAgentKindTheme } from "@/lib/agent-kind-themes";
+import { DesignTokenProvider } from "@/components/DesignTokenProvider";
 
 type ThreadMessage = {
   role: "user" | "assistant";
@@ -67,6 +69,9 @@ export function ProductAgentSurface({
       (interfaceMode || (interfaceSchema.input_fields?.length || 0) > 0)
   );
   const isChat = hasDesignedInterface ? interfaceMode === "chat" : kind === "chat";
+
+  /* Resolve per-kind design system — agent's own design_system always wins on top. */
+  const kindDs = resolveAgentKindTheme(kind, agent?.design_system ?? agent?.product_blueprint?.design_system);
 
   useEffect(() => {
     if (!isChat) return;
@@ -265,6 +270,7 @@ export function ProductAgentSurface({
   if (isChat) {
     const isEmpty = messages.length === 0;
     return (
+      <DesignTokenProvider designSystem={kindDs} className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col bg-transparent">
         <div className={`chat-thread flex-1 overflow-y-auto ${isEmpty ? "flex" : "p-4 sm:p-6"}`}>
           {isEmpty ? (
@@ -340,6 +346,7 @@ export function ProductAgentSurface({
           </div>
         )}
       </div>
+      </DesignTokenProvider>
     );
   }
 

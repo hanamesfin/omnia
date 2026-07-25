@@ -1493,16 +1493,37 @@ def _load_store() -> None:
             if not _has_product_app(agent):
                 agent["product_blueprint"] = _legacy_product_blueprint(agent)
                 upgraded += 1
+        # Replace weak/legacy/generic DS with Base44-style design strategy
+        strategy_n = _upgrade_agents_design_strategy()
         removed = _dedupe_seed_agents()
-        if upgraded or removed:
+        if upgraded or removed or strategy_n:
             _save_store()
             if upgraded:
                 log.info("standalone.legacy_products_upgraded", agents=upgraded)
+            if strategy_n:
+                log.info("standalone.design_strategy_upgraded", agents=strategy_n)
             if removed:
                 log.info("standalone.seed_duplicates_removed", agents=removed)
         log.info("standalone.store_restored", agents=len(STORE.get("agents", {})))
     except Exception as exc:
         log.warning("standalone.restore_failed", error=str(exc))
+
+
+def _upgrade_agents_design_strategy() -> int:
+    """Apply Builder's Blueprint design matching to weak catalog / persisted agents."""
+    try:
+        from engines.product_factory.design_upgrade import upgrade_store_agents
+    except Exception as exc:
+        log.warning("standalone.design_strategy_import_failed", error=str(exc))
+        return 0
+    try:
+        return upgrade_store_agents(
+            STORE.get("agents") or {},
+            trove_blueprint_fn=_trove_product_blueprint,
+        )
+    except Exception as exc:
+        log.warning("standalone.design_strategy_upgrade_failed", error=str(exc))
+        return 0
 
 
 # Stable seed catalog — same IDs across restarts so Discover never floods with clones.
@@ -1923,6 +1944,13 @@ def _upsert_seed_agent(
             if not isinstance(bp, dict) or bp.get("product_type") != "Collections App":
                 agent["product_blueprint"] = _trove_product_blueprint()
                 agent["interface_schema"] = {"mode": "chat", "input_fields": []}
+        # Retrofit distinctive design_system / design_match on existing seeds
+        try:
+            from engines.product_factory.design_upgrade import upgrade_agent_design
+
+            upgrade_agent_design(agent, trove_blueprint_fn=_trove_product_blueprint)
+        except Exception as exc:
+            log.warning("standalone.seed_design_upgrade_failed", agent_id=aid, error=str(exc))
         lid = f"listing-{aid}"
         if lid not in STORE["listings"]:
             STORE["listings"][lid] = {
@@ -2048,6 +2076,27 @@ def _upsert_seed_agent(
     if is_trove:
         STORE["agents"][aid]["product_blueprint"] = _trove_product_blueprint()
         STORE["agents"][aid]["interface_schema"] = {"mode": "chat", "input_fields": []}
+    else:
+        # New non-Trove seeds get strategy-driven DS (not generic legacy shell)
+        try:
+            from engines.product_factory.design_upgrade import strategy_product_blueprint
+
+            STORE["agents"][aid]["product_blueprint"] = strategy_product_blueprint(
+                STORE["agents"][aid]
+            )
+        except Exception as exc:
+            log.warning("standalone.seed_strategy_blueprint_failed", agent_id=aid, error=str(exc))
+            STORE["agents"][aid]["product_blueprint"] = _legacy_product_blueprint(
+                STORE["agents"][aid]
+            )
+    try:
+        from engines.product_factory.design_upgrade import upgrade_agent_design
+
+        upgrade_agent_design(
+            STORE["agents"][aid], trove_blueprint_fn=_trove_product_blueprint
+        )
+    except Exception as exc:
+        log.warning("standalone.seed_design_upgrade_failed", agent_id=aid, error=str(exc))
     if name in ("Guide", "Bug Triage", "Tone-Safe Support", "OMNIA Omni", "Trove"):
         lib = STORE["library"].setdefault(user_id, [])
         if not any(e.get("agent_id") == aid for e in lib):
@@ -2525,10 +2574,15 @@ async def lifespan(app: FastAPI):
     _load_store()
     _lock_seed_user_session()
     _ensure_seed_catalog()
+    # Startup migration: every weak/legacy/seed blueprint gets design strategy
+    strategy_n = _upgrade_agents_design_strategy()
     scrubbed = _sanitize_seed_social_proof()
-    if scrubbed:
+    if strategy_n or scrubbed:
         _save_store()
-        log.info("standalone.seed_social_proof_scrubbed", agents=scrubbed)
+        if strategy_n:
+            log.info("standalone.design_strategy_upgraded", agents=strategy_n)
+        if scrubbed:
+            log.info("standalone.seed_social_proof_scrubbed", agents=scrubbed)
     log.info("standalone.startup", port=8000, demo_mode=settings.DEMO_MODE, llm=_llm_usable())
     yield
     log.info("standalone.shutdown")
@@ -4124,6 +4178,16 @@ def _product_app_summary(agent: dict) -> dict:
     }
 
 
+def _listing_design_cues(agent: dict) -> dict | None:
+    """Discover card cues from strategy-driven design_match / tokens."""
+    try:
+        from engines.product_factory.design_upgrade import listing_design_cues
+
+        return listing_design_cues(agent)
+    except Exception:
+        return None
+
+
 @app.get("/api/v1/agents/")
 async def list_agents(user: SessionUser = Depends(require_perm("agent.read"))):
     rows = []
@@ -5565,6 +5629,12 @@ async def marketplace_list(user: SessionUser = Depends(require_perm("marketplace
                 count=1,
             )[0],
             "has_product_app": _has_product_app(agent),
+            "design_match": _listing_design_cues(agent),
+            "design_personality": (
+                ((agent.get("product_blueprint") or {}).get("design_system") or {}).get("personality")
+                if isinstance((agent.get("product_blueprint") or {}).get("design_system"), dict)
+                else None
+            ),
             "published_at": listing["published_at"],
             "parent_agent_id": agent.get("parent_agent_id"),
             "root_agent_id": agent.get("root_agent_id"),

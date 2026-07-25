@@ -10,6 +10,8 @@ import {
   firstProductPageId,
 } from "@/components/ProductAppShell";
 import { ProductAgentSurface } from "@/components/ProductAgentSurface";
+import { parseAgentKind } from "@/lib/agent-kinds";
+import { resolveAgentKindTheme } from "@/lib/agent-kind-themes";
 
 export default function ProductAppPage() {
   const params = useParams();
@@ -99,13 +101,21 @@ export default function ProductAppPage() {
   const blueprint = (agent.product_blueprint || {}) as ProductBlueprint;
   const isConversational = String(agent?.interface_schema?.mode || "").toLowerCase() === "chat";
 
+  /* Resolve kind theme as the design system base — agent's own blueprint.design_system wins on top. */
+  const kind = parseAgentKind(agent?.kind);
+  const resolvedDs = resolveAgentKindTheme(kind, blueprint.design_system ?? agent?.design_system);
+  const blueprintWithKindTheme: ProductBlueprint = {
+    ...blueprint,
+    design_system: resolvedDs,
+  };
+
   return (
     <ProductAppShell
       agentId={agentId}
       productName={agent.name}
       specialty={agent.specialty}
       pageId={pageId}
-      blueprint={blueprint}
+      blueprint={blueprintWithKindTheme}
       immersive={isConversational}
       toast={toast}
       onAction={onAction}

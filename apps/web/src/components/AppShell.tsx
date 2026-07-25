@@ -60,7 +60,12 @@ function isCreateStudioPath(pathname: string) {
  * AuthGate only — no OMNIA sidebar, hamburger, or Discover/Create/Yours chrome.
  */
 function isProductAppPath(pathname: string) {
-  return pathname === "/app" || pathname.startsWith("/app/");
+  return (
+    pathname === "/app" ||
+    pathname.startsWith("/app/") ||
+    pathname === "/field-manual" ||
+    pathname.startsWith("/field-manual/")
+  );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
