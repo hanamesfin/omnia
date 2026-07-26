@@ -4244,6 +4244,12 @@ async def get_agent(agent_id: str, user: SessionUser = Depends(require_perm("age
         agent["product_blueprint"] = strategy_product_blueprint(agent)
         STORE["agents"][agent_id] = agent
 
+    try:
+        from engines.product_factory.design_upgrade import upgrade_agent_design
+        upgrade_agent_design(agent, trove_blueprint_fn=_trove_product_blueprint)
+    except Exception:
+        pass
+
     in_lib = any(e["agent_id"] == agent_id for e in STORE["library"].get(user.id, []))
     listed = any(l["agent_id"] == agent_id and l["visibility"] == "public" for l in STORE["listings"].values())
     my_rating = (agent.get("user_ratings") or {}).get(user.id)
