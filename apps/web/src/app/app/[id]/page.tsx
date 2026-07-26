@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { fetchApi } from "@/lib/api";
+import { getLocalAgents } from "@/lib/agent-storage";
 import { hasProductShell } from "@/components/ProductShell";
 import { firstProductPageId } from "@/components/ProductAppShell";
 
@@ -16,18 +17,23 @@ export default function ProductAppIndexPage() {
     if (!id) return;
     const agentId = String(id);
     (async () => {
+      let agent: any;
       try {
-        const agent = await fetchApi(`/agents/${agentId}`);
-        const bp = agent.product_blueprint;
-        if (hasProductShell(bp)) {
-          const page = firstProductPageId(bp);
-          router.replace(`/app/${agentId}/${encodeURIComponent(page)}`);
-          return;
-        }
-        router.replace(`/yours/${agentId}`);
+        agent = await fetchApi(`/agents/${agentId}`);
       } catch {
-        setError("Couldn't open this product.");
+        agent = getLocalAgents().find((a) => a.id === agentId || a.agent_id === agentId);
       }
+      if (!agent) {
+        setError("Couldn't open this product.");
+        return;
+      }
+      const bp = agent.product_blueprint;
+      if (hasProductShell(bp)) {
+        const page = firstProductPageId(bp);
+        router.replace(`/app/${agentId}/${encodeURIComponent(page)}`);
+        return;
+      }
+      router.replace(`/yours/${agentId}`);
     })();
   }, [id, router]);
 

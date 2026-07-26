@@ -13,6 +13,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { fetchApi, API_BASE, ensureAuth, GENERATE_TIMEOUT_MS } from "@/lib/api";
+import { getLocalAgents } from "@/lib/agent-storage";
 import { kindMeta, parseAgentKind, type AgentKind } from "@/lib/agent-kinds";
 import { StarRating } from "@/components/StarRating";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -122,18 +123,29 @@ export default function AgentWorkspacePage() {
     : interfaceSchema?.submit_label || meta.openLabel;
 
   const reload = async () => {
-    const [agentRes, evalRes] = await Promise.all([
-      fetchApi(`/agents/${id}`),
-      fetchApi(`/agents/${id}/evaluation`),
-    ]);
-    setAgent(agentRes);
-    setEvalData(evalRes);
-    setCustomInstructions(agentRes.personalization?.custom_instructions || "");
-    setToneOverride(agentRes.personalization?.tone_override || "");
-    setSelectedModel(agentRes.model_id || "gpt-4o");
-    setShareContext(!!agentRes.share_context);
-    setNameDraft(agentRes.name || "");
-    setSpecialtyDraft(agentRes.specialty || "");
+    try {
+      const [agentRes, evalRes] = await Promise.all([
+        fetchApi(`/agents/${id}`),
+        fetchApi(`/agents/${id}/evaluation`).catch(() => ({})),
+      ]);
+      setAgent(agentRes);
+      setEvalData(evalRes);
+      setCustomInstructions(agentRes.personalization?.custom_instructions || "");
+      setToneOverride(agentRes.personalization?.tone_override || "");
+      setSelectedModel(agentRes.model_id || "gpt-4o");
+      setShareContext(!!agentRes.share_context);
+      setNameDraft(agentRes.name || "");
+      setSpecialtyDraft(agentRes.specialty || "");
+    } catch {
+      const aid = String(id || "");
+      const local = getLocalAgents().find((a) => a.id === aid || a.agent_id === aid);
+      if (local) {
+        setAgent(local);
+        setNameDraft(local.name || "");
+        setSpecialtyDraft(local.specialty || "");
+        setSelectedModel(local.model_id || "gpt-4o");
+      }
+    }
   };
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { fetchApi } from "@/lib/api";
+import { getLocalAgents } from "@/lib/agent-storage";
 import { hasProductShell, type ProductBlueprint } from "@/components/ProductShell";
 import {
   ProductAppShell,
@@ -28,24 +29,29 @@ export default function ProductAppPage() {
   useEffect(() => {
     if (!agentId) return;
     (async () => {
+      let res: any;
       try {
-        const res = await fetchApi(`/agents/${agentId}`);
-        setAgent(res);
-        const bp = res.product_blueprint as ProductBlueprint;
-        if (!hasProductShell(bp)) {
-          router.replace(`/yours/${agentId}`);
-          return;
-        }
-        const pages = bp.information_architecture?.nav?.length
-          ? bp.information_architecture.nav
-          : bp.information_architecture?.pages || [];
-        const ids = pages.map((p: { id?: string }) => String(p.id || ""));
-        if (pageId && !ids.includes(pageId)) {
-          const first = firstProductPageId(bp);
-          if (first) router.replace(`/app/${agentId}/${encodeURIComponent(first)}`);
-        }
+        res = await fetchApi(`/agents/${agentId}`);
       } catch {
+        res = getLocalAgents().find((a) => a.id === agentId || a.agent_id === agentId);
+      }
+      if (!res) {
         setError("Couldn't load this product.");
+        return;
+      }
+      setAgent(res);
+      const bp = res.product_blueprint as ProductBlueprint;
+      if (!hasProductShell(bp)) {
+        router.replace(`/yours/${agentId}`);
+        return;
+      }
+      const pages = bp.information_architecture?.nav?.length
+        ? bp.information_architecture.nav
+        : bp.information_architecture?.pages || [];
+      const ids = pages.map((p: { id?: string }) => String(p.id || ""));
+      if (pageId && !ids.includes(pageId)) {
+        const first = firstProductPageId(bp);
+        if (first) router.replace(`/app/${agentId}/${encodeURIComponent(first)}`);
       }
     })();
   }, [agentId, pageId, router]);

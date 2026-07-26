@@ -22,111 +22,14 @@ ProgressFn = Callable[[dict[str, Any]], Awaitable[None] | None]
 MAX_RETRIES = 2
 
 
+from engines.product_factory.dynamic_design_synthesizer import synthesize_dynamic_design
+
+
 def field_manual_design_match(prompt: str, domain: str = "general") -> dict[str, Any]:
-    text = (prompt + " " + domain).lower()
-
-    if any(k in text for k in ["code", "developer", "terminal", "telemetry", "hud", "spacex", "tesla"]):
-        school = "spacex-tesla"
-        archetype = "hud"
-        mood = "monospaced_telemetry"
-        bg = "#080c14"
-        fg = "#38bdf8"
-        accent = "#22d3ee"
-        surface = "#0f172a"
-        font_display = "JetBrains Mono"
-        font_sans = "Inter"
-        font_mono = "JetBrains Mono"
-        quote = "The best part is no part. The best process is no process."
-        tags = ["spacex", "hud", "telemetry", "monospaced", "zero_chrome"]
-    elif any(k in text for k in ["zen", "minimal", "apple", "restraint", "clean", "simple"]):
-        school = "apple"
-        archetype = "zen"
-        mood = "apple_restraint"
-        bg = "#fafafa"
-        fg = "#09090b"
-        accent = "#18181b"
-        surface = "#ffffff"
-        font_display = "SF Pro Display"
-        font_sans = "Inter"
-        font_mono = "SF Mono"
-        quote = "Say no to a thousand things so the one thing left is obvious."
-        tags = ["apple", "zen", "glassmorphism", "whitespace", "restraint"]
-    elif any(k in text for k in ["security", "triage", "cyber", "unit", "military", "tactical"]):
-        school = "unit-8200"
-        archetype = "triage"
-        mood = "tactical_workbench"
-        bg = "#090d16"
-        fg = "#e2e8f0"
-        accent = "#10b981"
-        surface = "#1e293b"
-        font_display = "Inter"
-        font_sans = "Inter"
-        font_mono = "Fira Code"
-        quote = "Small teams, total ownership, zero hand-offs, real consequences."
-        tags = ["unit_8200", "triage", "tactical", "workbench", "high_density"]
-    elif any(k in text for k in ["hardware", "circuit", "shenzhen", "pcb", "iot", "matrix"]):
-        school = "shenzhen"
-        archetype = "matrix"
-        mood = "circuit_board"
-        bg = "#05160e"
-        fg = "#34d399"
-        accent = "#10b981"
-        surface = "#064e3b"
-        font_display = "Space Grotesk"
-        font_sans = "Inter"
-        font_mono = "Space Mono"
-        quote = "Treat everything as a component. Iterate in physical cycles."
-        tags = ["shenzhen", "circuit", "pcb", "modular", "hardware"]
-    elif any(k in text for k in ["pipeline", "step", "flow", "workflow", "ppcee"]):
-        school = "ppcee-loop"
-        archetype = "ppcee"
-        mood = "pipeline_deck"
-        bg = "#0f172a"
-        fg = "#f8fafc"
-        accent = "#6366f1"
-        surface = "#1e293b"
-        font_display = "Outfit"
-        font_sans = "Inter"
-        font_mono = "JetBrains Mono"
-        quote = "Prompt → Preview → Confirm → Execute → Explain."
-        tags = ["ppcee", "pipeline", "workflow", "autonomous", "stage_cards"]
-    else:
-        school = "silicon-valley"
-        archetype = "stream"
-        mood = "fast_launchpad"
-        bg = "#0d1117"
-        fg = "#f0f6fc"
-        accent = "#6366f1"
-        surface = "#161b22"
-        font_display = "Outfit"
-        font_sans = "Inter"
-        font_mono = "Fira Code"
-        quote = "Ship the smallest thing that teaches you something — then ship again tomorrow."
-        tags = ["silicon_valley", "stream", "launchpad", "iteration", "antigravity"]
-
-    return {
-        "id": f"field-manual-{school}",
-        "template_id": f"field_manual_{school}",
-        "school": school,
-        "archetype": archetype,
-        "mood": mood,
-        "doctrine_quote": quote,
-        "style_tags": tags,
-        "token_hints": {
-            "bg": bg,
-            "fg": fg,
-            "accent": accent,
-            "surface": surface,
-            "muted": "#94a3b8",
-            "font_display": font_display,
-            "font_sans": font_sans,
-            "font_mono": font_mono,
-            "nav": "bottom_pill",
-        },
-        "score": 0.98,
-        "match_method": "field_manual_v1_doctrine",
-        "rationale": f"Field Manual V1 Native Doctrine ({school.upper()})",
-    }
+    """
+    Synthesize innovative custom design system directly from user prompt text & domain.
+    """
+    return synthesize_dynamic_design(prompt=prompt, domain=domain)
 
 
 def _apply_design_match(workspace: dict[str, Any], *, name: str, transcript: str) -> dict[str, Any]:

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { fetchApi } from "@/lib/api";
+import { getLocalAgents, getPublishedAgents } from "@/lib/agent-storage";
 import { SEED_LISTINGS } from "@/lib/seed-listings";
 import { kindMeta } from "@/lib/agent-kinds";
 import { StarRating } from "@/components/StarRating";
@@ -136,9 +137,14 @@ export default function ExploreProductPage() {
         }
 
         const catalogNow = mergeCatalog(Array.isArray(list) ? list : null);
+        const aid = String(id || "");
+        const localHit = [...getPublishedAgents(), ...getLocalAgents()].find(
+          (l) => (l.agent_id || l.id) === aid
+        ) as Suggestable | undefined;
         const hit =
-          catalogNow.find((l) => l.agent_id === id) ||
-          SEED_LISTINGS.find((l) => l.agent_id === id);
+          localHit ||
+          catalogNow.find((l) => (l.agent_id || l.id) === aid) ||
+          SEED_LISTINGS.find((l) => (l.agent_id || l.id) === aid);
         if (!cancelled && hit) {
           setProduct(hit);
           setOffline(!Array.isArray(list));
