@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { fetchApi } from "@/lib/api";
+import { getPublishedAgents } from "@/lib/agent-storage";
 import { SEED_LISTINGS, type SeedListing } from "@/lib/seed-listings";
 import { kindMeta } from "@/lib/agent-kinds";
 import { StarRating } from "@/components/StarRating";
@@ -230,16 +231,18 @@ export default function ExplorePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const localPub = (getPublishedAgents() as unknown as ExploreListing[]);
       try {
         const res = await fetchApi("/marketplace/", { silentAuth: true });
-        if (cancelled || !Array.isArray(res) || res.length === 0) return;
+        if (cancelled) return;
+        const remote = Array.isArray(res) && res.length > 0 ? res : [];
         startTransition(() => {
-          const mapped = res.map((r: ExploreListing) => ({
+          const mapped = [...localPub, ...remote, ...SEED_LISTINGS].map((r: ExploreListing) => ({
             ...r,
+            agent_id: r.agent_id || r.id || "agent-id",
             kind: r.kind || "tool",
             developer: r.developer || "OMNIA",
           }));
-          // One card per name — API also dedupes, this protects older responses.
           const seen = new Set<string>();
           const unique = mapped.filter((item) => {
             const key = String(item.name || "").trim().toLowerCase();
@@ -251,7 +254,22 @@ export default function ExplorePage() {
           setOfflineSeed(false);
         });
       } catch {
-        /* keep seed shelf */
+        if (!cancelled && localPub.length > 0) {
+          const mapped = [...localPub, ...SEED_LISTINGS].map((r: ExploreListing) => ({
+            ...r,
+            agent_id: r.agent_id || r.id || "agent-id",
+            kind: r.kind || "tool",
+            developer: r.developer || "OMNIA",
+          }));
+          const seen = new Set<string>();
+          const unique = mapped.filter((item) => {
+            const key = String(item.name || "").trim().toLowerCase();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setListings(unique);
+        }
       }
     })();
     return () => {

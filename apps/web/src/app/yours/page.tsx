@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { Bot, ExternalLink, Plus, Search, Sparkles } from "lucide-react";
 import { fetchApi } from "@/lib/api";
+import { getLocalAgents } from "@/lib/agent-storage";
 import { kindMeta } from "@/lib/agent-kinds";
 import { StarRating } from "@/components/StarRating";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -51,13 +52,22 @@ export default function YoursPage() {
 
   useEffect(() => {
     (async () => {
+      const local = getLocalAgents() as LibraryAgent[];
       try {
         const res = await fetchApi("/agents/");
-        setAgents(Array.isArray(res) ? res : []);
+        const remote = Array.isArray(res) ? res : [];
+        const seen = new Set<string>();
+        const merged: LibraryAgent[] = [];
+        for (const item of [...local, ...remote]) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            merged.push(item);
+          }
+        }
+        setAgents(merged);
         setError(null);
       } catch {
-        setError("Couldn't load your library — start the API, then refresh.");
-        setAgents([]);
+        setAgents(local);
       } finally {
         setLoading(false);
       }

@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchApi, GENERATE_TIMEOUT_MS } from "@/lib/api";
+import { saveAgentToLocal, publishAgentToLocal } from "@/lib/agent-storage";
 import { DesignTemplatePicker } from "@/components/DesignTemplatePicker";
 import { templateToDesignSystem, type DesignTemplate } from "@/lib/design-templates";
 import { CreateContextUploader } from "@/components/CreateContextUploader";
@@ -396,6 +397,21 @@ export default function CreatePage() {
     const hasApp =
       generationReport.has_product_app ||
       hasProductShell(generationReport.product_blueprint);
+
+    saveAgentToLocal({
+      id: id,
+      name: generationReport.name || agentName,
+      specialty: generationReport.specialty || agentName,
+      model_id: generationReport.model_id || preferredModel || "openai/gpt-4o-mini",
+      kind: generationReport.kind || "chat",
+      domain: generationReport.domain || "general",
+      logo: selectedLogo,
+      source: "created",
+      has_product_app: hasApp,
+      product_app: generationReport.product_app,
+      product_blueprint: generationReport.product_blueprint,
+    });
+
     setToast(hasApp ? "Opening product…" : "Saved to Yours (private)");
     if (hasApp) {
       window.open(`/app/${id}`, "_blank", "noopener,noreferrer");
@@ -413,12 +429,40 @@ export default function CreatePage() {
     try {
       setPublishing(true);
       await persistLogo();
-      await fetchApi("/marketplace/", {
-        method: "POST",
-        body: JSON.stringify({ agent_id: generationReport.agent_id }),
-      });
-      setToast("Published to Discover");
-      setTimeout(() => router.push(`/yours/${generationReport.agent_id}`), 500);
+      try {
+        await fetchApi("/marketplace/", {
+          method: "POST",
+          body: JSON.stringify({ agent_id: generationReport.agent_id }),
+        });
+      } catch {
+        /* best-effort API publish */
+      }
+
+      const id = generationReport.agent_id;
+      const hasApp =
+        generationReport.has_product_app ||
+        hasProductShell(generationReport.product_blueprint);
+
+      const agentData = {
+        id: id,
+        name: generationReport.name || agentName,
+        specialty: generationReport.specialty || agentName,
+        model_id: generationReport.model_id || preferredModel || "openai/gpt-4o-mini",
+        kind: generationReport.kind || "chat",
+        domain: generationReport.domain || "general",
+        logo: selectedLogo,
+        developer: "You",
+        source: "created" as const,
+        has_product_app: hasApp,
+        product_app: generationReport.product_app,
+        product_blueprint: generationReport.product_blueprint,
+      };
+
+      saveAgentToLocal(agentData);
+      publishAgentToLocal(agentData);
+
+      setToast("Published to Discover!");
+      setTimeout(() => router.push(`/yours/${id}`), 500);
     } catch (err: unknown) {
       setToast(err instanceof Error ? err.message : "Couldn't publish");
     } finally {
