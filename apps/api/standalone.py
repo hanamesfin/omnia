@@ -3048,6 +3048,34 @@ async def interview_start(
     }
 
 
+def _get_or_create_session(sid: str, user_id: str, create_tier: str = "normal") -> dict:
+    session = STORE["sessions"].get(sid)
+    if not session:
+        step = get_initial_step()
+        tier = normalize_create_tier(create_tier)
+        if _real_key(settings.OPENROUTER_API_KEY) and _llm_usable(DEFAULT_PAID_MODEL):
+            preferred = DEFAULT_PAID_MODEL
+        elif _llm_usable(DEFAULT_CREATE_MODEL):
+            preferred = DEFAULT_CREATE_MODEL
+        else:
+            preferred = None
+        session = {
+            "id": sid,
+            "user_id": user_id,
+            "state": step.state,
+            "answers": {},
+            "requirements": {},
+            "context_ids": [],
+            "chat": [{"role": "assistant", "content": step.question}],
+            "preferred_model": preferred,
+            "create_tier": tier,
+        }
+        STORE["sessions"][sid] = session
+    else:
+        session["user_id"] = user_id
+    return session
+
+
 class AnswerIn(BaseModel):
     session_id: str
     answer: str
@@ -3057,19 +3085,7 @@ class AnswerIn(BaseModel):
 
 @app.post("/api/v1/interview/answer")
 async def interview_answer(req: AnswerIn, user: SessionUser = Depends(require_perm("agent.create"))):
-    session = STORE["sessions"].get(req.session_id)
-    if not session or session["user_id"] != user.id:
-        # After reload, stable demo user may differ from session owner UUID — still 404
-        raise HTTPException(
-            404,
-            {
-                "error": {
-                    "code": "interview.not_found",
-                    "message": "Interview session not found — refresh Create to start again",
-                    "retryable": True,
-                }
-            },
-        )
+    session = _get_or_create_session(req.session_id, user.id)
     if req.answer_type not in ("chip", "freetext"):
         raise HTTPException(400, {"error": {"code": "interview.invalid_answer_type", "message": "answer_type must be chip or freetext", "retryable": False}})
 
@@ -3268,9 +3284,7 @@ class ContextIn(BaseModel):
 @app.post("/api/v1/interview/context")
 async def interview_context(req: ContextIn, user: SessionUser = Depends(require_perm("agent.create"))):
     """Attach knowledge files (docs, CSV, code, images) to the Create session."""
-    session = STORE["sessions"].get(req.session_id)
-    if not session or session["user_id"] != user.id:
-        raise HTTPException(404, {"error": {"code": "interview.not_found", "message": "Session not found", "retryable": False}})
+    session = _get_or_create_session(req.session_id, user.id)
     if len(req.attachment_ids) > 12:
         raise HTTPException(400, {"error": {"code": "interview.too_many_files", "message": "Max 12 context files", "retryable": False}})
 
@@ -3362,9 +3376,7 @@ async def interview_knowledge_status(
     session_id: str,
     user: SessionUser = Depends(require_perm("agent.create")),
 ):
-    session = STORE["sessions"].get(session_id)
-    if not session or session["user_id"] != user.id:
-        raise HTTPException(404, {"error": {"code": "interview.not_found", "message": "Session not found", "retryable": False}})
+    session = _get_or_create_session(session_id, user.id)
     docs = get_knowledge_store().list_documents(session_id=session_id)
     return {
         "session_id": session_id,
@@ -3379,9 +3391,7 @@ async def interview_knowledge_try(
     req: KnowledgeTryIn,
     user: SessionUser = Depends(require_perm("agent.create")),
 ):
-    session = STORE["sessions"].get(req.session_id)
-    if not session or session["user_id"] != user.id:
-        raise HTTPException(404, {"error": {"code": "interview.not_found", "message": "Session not found", "retryable": False}})
+    session = _get_or_create_session(req.session_id, user.id)
     hits = search_knowledge(
         get_knowledge_store(),
         req.query,
@@ -3417,9 +3427,7 @@ async def generate_agent(req: GenerateIn, user: SessionUser = Depends(require_pe
                 }
             },
         )
-    session = STORE["sessions"].get(req.session_id)
-    if not session or session["user_id"] != user.id:
-        raise HTTPException(404, {"error": {"code": "agent.session_not_found", "message": "Interview session not found", "retryable": False}})
+    session = _get_or_create_session(req.session_id, user.id)
 
     answers = dict(session["answers"])
     ok, reason = _session_can_generate(session)

@@ -163,12 +163,14 @@ export default function CreatePage() {
       );
       setBootError(null);
       setStarted(true);
+      return res.session_id as string;
     } catch {
       setBootError(
         "Couldn't reach the API. Run: cd apps/api && python3 -m uvicorn standalone:app --port 8000"
       );
       setQuestion("");
       setChips([]);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -177,7 +179,12 @@ export default function CreatePage() {
   const stepIndex = Math.min(7, Math.floor((progress / 100) * 8));
 
   const handleAnswer = async (answer: string, answerType: AnswerType) => {
-    if (!answer.trim() || !sessionId) return;
+    if (!answer.trim()) return;
+    let activeSid = sessionId;
+    if (!activeSid) {
+      activeSid = await bootInterview(createTier);
+      if (!activeSid) return;
+    }
     try {
       setLoading(true);
       setChat((prev) => [...prev, { role: "user", content: answer.trim() }]);
@@ -185,7 +192,7 @@ export default function CreatePage() {
         method: "POST",
         timeoutMs: 45000,
         body: JSON.stringify({
-          session_id: sessionId,
+          session_id: activeSid,
           answer,
           answer_type: answerType,
           ...(preferredModel ? { preferred_model: preferredModel } : {}),
@@ -216,8 +223,38 @@ export default function CreatePage() {
       const msg = err instanceof Error ? err.message : "Couldn't send that answer";
       if (/not found|session/i.test(msg)) {
         try {
-          await bootInterview(createTier);
-          setToast("Session reset — send your answer again");
+          const freshSid = await bootInterview(createTier);
+          if (freshSid) {
+            const retryRes = await fetchApi("/interview/answer", {
+              method: "POST",
+              timeoutMs: 45000,
+              body: JSON.stringify({
+                session_id: freshSid,
+                answer,
+                answer_type: answerType,
+                ...(preferredModel ? { preferred_model: preferredModel } : {}),
+              }),
+            });
+            setQuestion(retryRes.question);
+            setChips(retryRes.chips);
+            setProgress(retryRes.progress);
+            setIsDone(retryRes.is_done);
+            setCanFinish(!!retryRes.can_finish);
+            setUserTurns(retryRes.user_turns ?? userTurns);
+            setMinTurns(retryRes.min_turns ?? minTurns);
+            setInputValue("");
+            if (retryRes.preferred_model) setPreferredModel(retryRes.preferred_model);
+            if (retryRes.served_model) setServedModel(retryRes.served_model);
+            if (typeof retryRes.knowledge_ready === "boolean") setKnowledgeReady(retryRes.knowledge_ready);
+            if (Array.isArray(retryRes.chat)) setChat(retryRes.chat);
+            if (retryRes.requirements) setRequirements(retryRes.requirements);
+            if (retryRes.insight) setInsight(retryRes.insight);
+            if (retryRes.blueprint?.domain) setRecommendDomain(retryRes.blueprint.domain);
+            if (retryRes.is_done && retryRes.blueprint?.archetype) {
+              setAgentName(retryRes.blueprint.archetype);
+            }
+            return;
+          }
         } catch {
           setToast(msg);
         }
