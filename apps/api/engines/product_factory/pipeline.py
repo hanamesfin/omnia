@@ -22,39 +22,136 @@ ProgressFn = Callable[[dict[str, Any]], Awaitable[None] | None]
 MAX_RETRIES = 2
 
 
+def field_manual_design_match(prompt: str, domain: str = "general") -> dict[str, Any]:
+    text = (prompt + " " + domain).lower()
+
+    if any(k in text for k in ["code", "developer", "terminal", "telemetry", "hud", "spacex", "tesla"]):
+        school = "spacex-tesla"
+        archetype = "hud"
+        mood = "monospaced_telemetry"
+        bg = "#080c14"
+        fg = "#38bdf8"
+        accent = "#22d3ee"
+        surface = "#0f172a"
+        font_display = "JetBrains Mono"
+        font_sans = "Inter"
+        font_mono = "JetBrains Mono"
+        quote = "The best part is no part. The best process is no process."
+        tags = ["spacex", "hud", "telemetry", "monospaced", "zero_chrome"]
+    elif any(k in text for k in ["zen", "minimal", "apple", "restraint", "clean", "simple"]):
+        school = "apple"
+        archetype = "zen"
+        mood = "apple_restraint"
+        bg = "#fafafa"
+        fg = "#09090b"
+        accent = "#18181b"
+        surface = "#ffffff"
+        font_display = "SF Pro Display"
+        font_sans = "Inter"
+        font_mono = "SF Mono"
+        quote = "Say no to a thousand things so the one thing left is obvious."
+        tags = ["apple", "zen", "glassmorphism", "whitespace", "restraint"]
+    elif any(k in text for k in ["security", "triage", "cyber", "unit", "military", "tactical"]):
+        school = "unit-8200"
+        archetype = "triage"
+        mood = "tactical_workbench"
+        bg = "#090d16"
+        fg = "#e2e8f0"
+        accent = "#10b981"
+        surface = "#1e293b"
+        font_display = "Inter"
+        font_sans = "Inter"
+        font_mono = "Fira Code"
+        quote = "Small teams, total ownership, zero hand-offs, real consequences."
+        tags = ["unit_8200", "triage", "tactical", "workbench", "high_density"]
+    elif any(k in text for k in ["hardware", "circuit", "shenzhen", "pcb", "iot", "matrix"]):
+        school = "shenzhen"
+        archetype = "matrix"
+        mood = "circuit_board"
+        bg = "#05160e"
+        fg = "#34d399"
+        accent = "#10b981"
+        surface = "#064e3b"
+        font_display = "Space Grotesk"
+        font_sans = "Inter"
+        font_mono = "Space Mono"
+        quote = "Treat everything as a component. Iterate in physical cycles."
+        tags = ["shenzhen", "circuit", "pcb", "modular", "hardware"]
+    elif any(k in text for k in ["pipeline", "step", "flow", "workflow", "ppcee"]):
+        school = "ppcee-loop"
+        archetype = "ppcee"
+        mood = "pipeline_deck"
+        bg = "#0f172a"
+        fg = "#f8fafc"
+        accent = "#6366f1"
+        surface = "#1e293b"
+        font_display = "Outfit"
+        font_sans = "Inter"
+        font_mono = "JetBrains Mono"
+        quote = "Prompt → Preview → Confirm → Execute → Explain."
+        tags = ["ppcee", "pipeline", "workflow", "autonomous", "stage_cards"]
+    else:
+        school = "silicon-valley"
+        archetype = "stream"
+        mood = "fast_launchpad"
+        bg = "#0d1117"
+        fg = "#f0f6fc"
+        accent = "#6366f1"
+        surface = "#161b22"
+        font_display = "Outfit"
+        font_sans = "Inter"
+        font_mono = "Fira Code"
+        quote = "Ship the smallest thing that teaches you something — then ship again tomorrow."
+        tags = ["silicon_valley", "stream", "launchpad", "iteration", "antigravity"]
+
+    return {
+        "id": f"field-manual-{school}",
+        "template_id": f"field_manual_{school}",
+        "school": school,
+        "archetype": archetype,
+        "mood": mood,
+        "doctrine_quote": quote,
+        "style_tags": tags,
+        "token_hints": {
+            "bg": bg,
+            "fg": fg,
+            "accent": accent,
+            "surface": surface,
+            "muted": "#94a3b8",
+            "font_display": font_display,
+            "font_sans": font_sans,
+            "font_mono": font_mono,
+            "nav": "bottom_pill",
+        },
+        "score": 0.98,
+        "match_method": "field_manual_v1_doctrine",
+        "rationale": f"Field Manual V1 Native Doctrine ({school.upper()})",
+    }
+
+
 def _apply_design_match(workspace: dict[str, Any], *, name: str, transcript: str) -> dict[str, Any]:
     """
-    Prompt→template match (offline heuristics + optional embeddings).
-    Persists figma_template + design_match for design_system / ui_codegen.
+    Prompt → Field Manual V1 design match (Native Antigravity Design System).
+    Persists Field Manual V1 design_match for design_system & UI rendering.
     """
-    try:
-        from services.figma.matcher import find_best_figma_template
-    except Exception as e:
-        log.warning("product_factory.design_match_import_failed", error=str(e))
-        return workspace
-
     domain = str(
         (workspace.get("ai_core") or {}).get("domain")
         or workspace.get("product_type")
         or ""
     )
     prompt = f"{name}\n{transcript}"[:4000]
-    match = find_best_figma_template(prompt, domain=domain, top_k=4)
-    dm = match.get("design_match") or {}
+    dm = field_manual_design_match(prompt, domain=domain)
     workspace["figma_template"] = {
-        "id": match.get("id"),
-        "file_key": match.get("file_key"),
-        "node_id": match.get("node_id"),
-        "domain": match.get("domain"),
-        "product_archetype": match.get("product_archetype") or dm.get("archetype"),
-        "style_tags": list(match.get("style_tags") or dm.get("style_tags") or [])[:8],
-        "score": match.get("score"),
-        "match_method": match.get("match_method"),
-        "match_reason": match.get("match_reason") or dm.get("rationale"),
-        "placeholder": bool(match.get("placeholder")),
-        "candidates": list(match.get("candidates") or [])[:4],
+        "id": dm.get("id"),
+        "domain": domain,
+        "product_archetype": dm.get("archetype"),
+        "style_tags": dm.get("style_tags"),
+        "score": dm.get("score"),
+        "match_method": dm.get("match_method"),
+        "match_reason": dm.get("rationale"),
+        "placeholder": False,
     }
-    workspace["design_match"] = dict(dm) if dm else {}
+    workspace["design_match"] = dm
     return workspace
 
 

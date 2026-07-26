@@ -319,17 +319,15 @@ def attach_collections_design_match(bp: dict[str, Any]) -> dict[str, Any]:
 
 def strategy_product_blueprint(agent: dict[str, Any]) -> dict[str, Any]:
     """
-    Build a distinctive product blueprint from name/specialty/domain via matcher.
-    Does not force Collections unless agent is Trove / curation identity.
+    Build a distinctive product blueprint using Field Manual V1 design match.
     """
-    from services.figma.matcher import find_best_figma_template
+    from engines.product_factory.pipeline import field_manual_design_match
 
     name = str(agent.get("name") or "AI Agent")
     specialty = str(agent.get("specialty") or agent.get("domain") or "AI assistant")
     domain = str(agent.get("domain") or "")
 
     if is_collections_agent(agent):
-        # Caller should use Collections blueprint; this path is a safety net.
         match, dm = _collections_design_match()
         return {
             "product_type": "Collections App",
@@ -341,24 +339,10 @@ def strategy_product_blueprint(agent: dict[str, Any]) -> dict[str, Any]:
         }
 
     prompt = _agent_prompt_blob(agent)
-    match = find_best_figma_template(prompt, domain=domain, top_k=4)
-    dm = dict(match.get("design_match") or {})
-
-    # Guard: never apply gallery_curation shell to non-Trove agents
-    if str(dm.get("archetype") or "").lower() == "gallery_curation":
-        # Re-match with anti-curation bias in prompt
-        match = find_best_figma_template(
-            f"{prompt}\nvertical saas workspace tool utility — not a gallery",
-            domain=domain or "saas",
-            top_k=4,
-        )
-        dm = dict(match.get("design_match") or {})
-        if str(dm.get("archetype") or "").lower() == "gallery_curation":
-            dm["archetype"] = "b2b_workspace"
-            dm["template_id"] = "saas_workspace"
+    dm = field_manual_design_match(prompt, domain=domain)
+    match = {"id": dm.get("id"), "domain": domain, "design_match": dm}
 
     family = _family_for_agent(agent, dm)
-    # If family still returned Collections (keyword collision), force generic saas
     if str(family.get("product_type") or "").lower().startswith("collections"):
         from engines.product_factory.specialists import heuristic_phase
 
@@ -398,22 +382,15 @@ def _patch_design_onto_blueprint(
     bp: dict[str, Any],
     agent: dict[str, Any],
 ) -> dict[str, Any]:
-    """Keep rich IA; refresh design_system + design_match from matcher."""
-    from services.figma.matcher import find_best_figma_template
+    """Keep rich IA; refresh design_system + design_match from Field Manual matcher."""
+    from engines.product_factory.pipeline import field_manual_design_match
 
     name = str(agent.get("name") or "AI Agent")
     specialty = str(agent.get("specialty") or "")
     domain = str(agent.get("domain") or "")
     prompt = _agent_prompt_blob(agent)
-    match = find_best_figma_template(prompt, domain=domain, top_k=4)
-    dm = dict(match.get("design_match") or {})
-
-    if str(dm.get("archetype") or "").lower() == "gallery_curation" and not is_collections_agent(agent):
-        match = find_best_figma_template(
-            f"{prompt}\nvertical saas workspace — not gallery",
-            domain=domain or "saas",
-        )
-        dm = dict(match.get("design_match") or {})
+    dm = field_manual_design_match(prompt, domain=domain)
+    match = {"id": dm.get("id"), "domain": domain, "design_match": dm}
 
     existing_ds = bp.get("design_system") if isinstance(bp.get("design_system"), dict) else {}
     out = dict(bp)
