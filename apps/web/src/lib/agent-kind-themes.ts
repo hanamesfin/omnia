@@ -270,31 +270,94 @@ export function resolveAgentKindTheme(
   };
 }
 
-/** CSS variable map for the given resolved design system — used inline on the shell root. */
+/** CSS variable map for the given resolved design system — used inline on the shell root.
+ *
+ * Emits BOTH the OMNIA standard variable names (--background, --foreground,
+ * --surface, --muted, --alive, --border …) AND the --ak-* / --pf-* names so
+ * that every OMNIA component and Tailwind utility inside the shell inherits
+ * the kind theme automatically — no class overrides needed.
+ *
+ * CSS custom properties cascade down the DOM tree, so setting these on the
+ * shell's root div overrides :root for all descendants.
+ */
 export function kindThemeCssVars(ds: DesignSystem): Record<string, string> {
   const colors = ds.tokens?.colors || {};
-  const typo = ds.tokens?.typography || {};
+  const typo   = ds.tokens?.typography || {};
+
+  const bg      = String(colors.bg      || "#0a0a0c");
+  const fg      = String(colors.fg      || "#f0f0f0");
+  const surface = String(colors.surface || "#111216");
+  const muted   = String(colors.muted   || "#666");
+  const accent  = String(colors.accent  || "#7c9ef8");
+  const border  = String(colors.border  || "rgba(255,255,255,0.08)");
+
+  // Derive an "elevated" surface that's slightly lighter for modals/tooltips.
+  // We can't do real math in JS for hex colours without a library, so we
+  // reuse surface for now — good enough for distinct theming.
+  const surfaceElevated = surface;
+
+  const fontBody    = typo.font_sans
+    ? `"${typo.font_sans}", system-ui, sans-serif`
+    : '"Inter", system-ui, sans-serif';
+  const fontDisplay = typo.font_display
+    ? `"${typo.font_display}", Georgia, serif`
+    : fontBody;
+  const fontMono    = typo.font_mono
+    ? `"${typo.font_mono}", monospace`
+    : '"JetBrains Mono", monospace';
+
   return {
-    "--ak-bg": String(colors.bg || "#0a0a0c"),
-    "--ak-fg": String(colors.fg || "#f0f0f0"),
-    "--ak-surface": String(colors.surface || "#111216"),
-    "--ak-muted": String(colors.muted || "#666"),
-    "--ak-accent": String(colors.accent || "#7c9ef8"),
-    "--ak-border": String(colors.border || "rgba(255,255,255,0.08)"),
-    "--pf-bg": String(colors.bg || "#0a0a0c"),
-    "--pf-fg": String(colors.fg || "#f0f0f0"),
-    "--pf-surface": String(colors.surface || "#111216"),
-    "--pf-muted": String(colors.muted || "#666"),
-    "--pf-accent": String(colors.accent || "#7c9ef8"),
-    "--pf-border": String(colors.border || "rgba(255,255,255,0.08)"),
-    "--pf-font-display": typo.font_display
-      ? `"${typo.font_display}", Georgia, serif`
-      : '"Inter", system-ui, sans-serif',
-    "--pf-font-body": typo.font_sans
-      ? `"${typo.font_sans}", system-ui, sans-serif`
-      : '"Inter", system-ui, sans-serif',
-    "--pf-font-mono": typo.font_mono
-      ? `"${typo.font_mono}", monospace`
-      : '"JetBrains Mono", monospace',
+    // ── Kind-scoped aliases (used by .agent-isolated-shell CSS rules) ────────
+    "--ak-bg":      bg,
+    "--ak-fg":      fg,
+    "--ak-surface": surface,
+    "--ak-muted":   muted,
+    "--ak-accent":  accent,
+    "--ak-border":  border,
+
+    // ── OMNIA standard variables — THESE are what all components read ────────
+    // Override every :root token so the kind theme takes full effect inside
+    // the shell without touching a single component's className.
+    "--background":       bg,
+    "--foreground":       fg,
+    "--canvas":           bg,
+    "--sidebar":          surface,
+    "--nav-selected":     surfaceElevated,
+    "--text-primary":     fg,
+    "--text-secondary":   muted,
+    "--text-tertiary":    muted,
+    "--muted":            muted,
+    "--surface":          surface,
+    "--surface-solid":    surface,
+    "--surface-elevated": surfaceElevated,
+    "--primary":          accent,
+    "--alive":            accent,
+    "--accent":           accent,
+    "--on-alive":         bg,
+    "--border":           border,
+    "--ring":             accent,
+    "--glow":             `color-mix(in srgb, ${accent} 20%, transparent)`,
+    "--mesh-a":           `color-mix(in srgb, ${surface} 55%, transparent)`,
+    "--mesh-b":           `color-mix(in srgb, ${bg} 82%, transparent)`,
+    "--mesh-c":           `color-mix(in srgb, ${accent} 9%, transparent)`,
+    "--constellation":    accent,
+    "--shadow-soft":      "0 4px 24px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25)",
+    "--shadow-float":     "0 16px 48px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)",
+    "--radius-control":   "1.25rem",
+    "--radius-panel":     "1.75rem",
+
+    // ── Product-frame vars (ProductAppShell / ProductShell) ─────────────────
+    "--pf-bg":           bg,
+    "--pf-fg":           fg,
+    "--pf-surface":      surface,
+    "--pf-muted":        muted,
+    "--pf-accent":       accent,
+    "--pf-border":       border,
+    "--pf-font-display": fontDisplay,
+    "--pf-font-body":    fontBody,
+    "--pf-font-mono":    fontMono,
+
+    // ── Font stack — overrides the html-level default for elements inside ──
+    "--omnia-font-stack": fontBody,
   };
 }

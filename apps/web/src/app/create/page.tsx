@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { fetchApi, GENERATE_TIMEOUT_MS } from "@/lib/api";
+import { DesignTemplatePicker } from "@/components/DesignTemplatePicker";
+import { templateToDesignSystem, type DesignTemplate } from "@/lib/design-templates";
 import { CreateContextUploader } from "@/components/CreateContextUploader";
 import { VoiceInput } from "@/components/VoiceInput";
 import { ComposerPlusMenu } from "@/components/ComposerPlusMenu";
@@ -108,6 +110,8 @@ export default function CreatePage() {
   const [servedModel, setServedModel] = useState<string | null>(null);
   const [chat, setChat] = useState<ChatTurn[]>([]);
   const [knowledgeReady, setKnowledgeReady] = useState(true);
+  const [designPickerDone, setDesignPickerDone] = useState(false);
+  const [selectedDesignTemplate, setSelectedDesignTemplate] = useState<DesignTemplate | null>(null);
 
   useEffect(() => {
     if (generationReport) {
@@ -267,6 +271,9 @@ export default function CreatePage() {
           session_id: sessionId,
           name: agentName,
           ...(preferredModel ? { preferred_model: preferredModel } : {}),
+          ...(selectedDesignTemplate
+            ? { design_system: templateToDesignSystem(selectedDesignTemplate) }
+            : {}),
         }),
       });
       await pollProgress();
@@ -832,6 +839,15 @@ export default function CreatePage() {
                     </form>
                   </div>
                 </div>
+              ) : !designPickerDone ? (
+                /* ── Design picker step — shown once isDone, before generate ── */
+                <DesignTemplatePicker
+                  onSelect={(t) => {
+                    setSelectedDesignTemplate(t);
+                    setDesignPickerDone(true);
+                  }}
+                  onSkip={() => setDesignPickerDone(true)}
+                />
               ) : (
                 <div className="space-y-6">
                   <h2 className="font-display text-2xl font-medium tracking-tight">
@@ -931,6 +947,26 @@ export default function CreatePage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {selectedDesignTemplate && (
+                        <div className="flex items-center gap-3 rounded-2xl bg-alive/6 px-4 py-2.5 ring-1 ring-alive/15">
+                          <div
+                            className="h-5 w-5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: selectedDesignTemplate.tokens.colors.accent }}
+                          />
+                          <p className="text-sm">
+                            <span className="font-medium text-foreground">{selectedDesignTemplate.name}</span>
+                            <span className="ml-2 text-muted">design selected</span>
+                          </p>
+                          <button
+                            type="button"
+                            aria-label="Change design"
+                            onClick={() => setDesignPickerDone(false)}
+                            className="ml-auto text-xs text-alive hover:underline"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      )}
                       {preferredModel && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-alive/10 px-2.5 py-1 text-[11px] font-medium text-alive ring-1 ring-alive/20">
                           Model: {modelDisplayName(preferredModel)}

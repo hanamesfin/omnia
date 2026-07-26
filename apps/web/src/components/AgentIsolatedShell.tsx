@@ -51,17 +51,28 @@ export function AgentIsolatedShell({
   useEffect(() => {
     const prev = document.title;
     document.title = agentName;
+    /* Preload kind fonts as soon as the shell mounts. */
+    preloadKindFonts(kind);
     return () => {
       document.title = prev;
     };
-  }, [agentName]);
+  }, [agentName, kind]);
+
+  /* Inline styles: CSS vars + explicit bg/fg/font so the shell renders in the
+     kind colour immediately, before child CSS resolves var(--background). */
+  const shellStyle: CSSProperties = {
+    ...(cssVars as CSSProperties),
+    backgroundColor: cssVars["--ak-bg"] || "#0a0a0c",
+    color:           cssVars["--ak-fg"] || "#f0f0f0",
+    fontFamily:      cssVars["--omnia-font-stack"] || "system-ui, sans-serif",
+  };
 
   return (
     <div
       className="agent-isolated-shell"
       data-agent-kind={kind}
       data-personality={personality}
-      style={cssVars as CSSProperties}
+      style={shellStyle}
     >
       {/* ── Minimal exit chrome — top-left, floating ── */}
       <div className="agent-isolated-exit">
